@@ -10,17 +10,34 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
+import { Badge } from '@/components/ui/badge';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Dossiers', href: '/dossiers', icon: FolderOpen },
   { name: 'Mon Profil', href: '/profil', icon: User },
+];
+
+const adminNavigation = [
   { name: 'Administration', href: '/admin', icon: Settings },
 ];
 
 export function Sidebar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
+  const { role, isAdmin } = useUserRole();
+
+  const getRoleLabel = (role: string | null | undefined) => {
+    switch (role) {
+      case 'admin':
+        return 'Administrateur';
+      case 'charge_affaires':
+        return 'Chargé d\'affaires';
+      default:
+        return 'Utilisateur';
+    }
+  };
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
@@ -56,6 +73,33 @@ export function Sidebar() {
               </Link>
             );
           })}
+
+          {/* Admin-only navigation */}
+          {isAdmin && (
+            <>
+              <div className="my-3 border-t border-sidebar-border" />
+              <p className="px-3 text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider mb-2">
+                Administration
+              </p>
+              {adminNavigation.map((item) => {
+                const isActive = location.pathname === item.href;
+                
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={cn(
+                      'sidebar-link',
+                      isActive && 'sidebar-link-active'
+                    )}
+                  >
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
 
         {/* Stats Card */}
@@ -84,9 +128,14 @@ export function Sidebar() {
               <p className="text-sm font-medium text-sidebar-foreground truncate">
                 {user?.email?.split('@')[0] || 'Utilisateur'}
               </p>
-              <p className="text-xs text-sidebar-foreground/60">
-                Chargé d'affaires
-              </p>
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant={isAdmin ? "default" : "secondary"} 
+                  className="text-[10px] px-1.5 py-0"
+                >
+                  {getRoleLabel(role)}
+                </Badge>
+              </div>
             </div>
           </div>
           <button 
