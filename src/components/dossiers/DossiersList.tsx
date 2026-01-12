@@ -11,7 +11,6 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Filter,
   X,
   SlidersHorizontal,
   ChevronLeft,
@@ -42,9 +41,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import type { DossierRow } from '@/hooks/useDossiers';
+import { useDeleteDossier, type DossierRow } from '@/hooks/useDossiers';
 
 type SortField = 'raison_sociale' | 'siren' | 'type_financement' | 'montant_demande' | 'score_global' | 'status' | 'created_at';
 type SortDirection = 'asc' | 'desc';
@@ -89,6 +98,24 @@ export function DossiersList({ dossiers }: DossiersListProps) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const maxMontant = useMemo(() => Math.max(...dossiers.map(d => d.montant_demande), 1000000), [dossiers]);
+
+  // Delete state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [dossierToDelete, setDossierToDelete] = useState<DossierRow | null>(null);
+  const deleteDossier = useDeleteDossier();
+
+  const handleDeleteClick = (dossier: DossierRow) => {
+    setDossierToDelete(dossier);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (dossierToDelete) {
+      await deleteDossier.mutateAsync(dossierToDelete.id);
+      setDeleteDialogOpen(false);
+      setDossierToDelete(null);
+    }
+  };
 
   const filteredAndSortedDossiers = useMemo(() => {
     let result = dossiers.filter((dossier) => {
@@ -593,7 +620,10 @@ export function DossiersList({ dossiers }: DossiersListProps) {
                               Modifier
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive focus:text-destructive">
+                          <DropdownMenuItem 
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => handleDeleteClick(dossier)}
+                          >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Supprimer
                           </DropdownMenuItem>
@@ -706,6 +736,38 @@ export function DossiersList({ dossiers }: DossiersListProps) {
           </div>
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer le dossier{' '}
+              <strong>{dossierToDelete?.raison_sociale}</strong> (SIREN: {dossierToDelete?.siren}) ?
+              <br /><br />
+              Cette action est réversible et le dossier pourra être restauré par un administrateur.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteDossier.isPending}
+            >
+              {deleteDossier.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Suppression...
+                </>
+              ) : (
+                'Supprimer'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

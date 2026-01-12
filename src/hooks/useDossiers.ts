@@ -85,6 +85,7 @@ export function useDossiers() {
       const { data, error } = await supabase
         .from('dossiers')
         .select('*')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -361,6 +362,55 @@ export function useSaveFinancieres() {
     },
     onError: (error) => {
       toast.error('Erreur lors de l\'enregistrement');
+      console.error(error);
+    },
+  });
+}
+
+export function useDeleteDossier() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Get dossier info for audit
+      const { data: dossierData } = await supabase
+        .from('dossiers')
+        .select('raison_sociale, siren')
+        .eq('id', id)
+        .single();
+
+      // Soft delete by setting deleted_at
+      const { data, error } = await supabase
+        .from('dossiers')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log audit action
+      if (user && dossierData) {
+        await logAuditAction(
+          user.id,
+          'DELETE',
+          'dossier',
+          id,
+          id,
+          { raison_sociale: dossierData.raison_sociale, siren: dossierData.siren },
+          undefined
+        );
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dossiers'] });
+      toast.success('Dossier supprimé avec succès');
+    },
+    onError: (error) => {
+      toast.error('Erreur lors de la suppression du dossier');
       console.error(error);
     },
   });
