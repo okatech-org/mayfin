@@ -11,6 +11,7 @@ import DossierDetailPage from "./pages/DossierDetailPage";
 import NewDossierPage from "./pages/NewDossierPage";
 import LoginPage from "./pages/LoginPage";
 import ProfilPage from "./pages/ProfilPage";
+import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/dossiers/nouveau" element={<ProtectedRoute><NewDossierPage /></ProtectedRoute>} />
             <Route path="/dossiers/:id" element={<ProtectedRoute><DossierDetailPage /></ProtectedRoute>} />
             <Route path="/profil" element={<ProtectedRoute><ProfilPage /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
