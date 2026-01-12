@@ -5,7 +5,8 @@ import {
   User, 
   LogOut,
   TrendingUp,
-  Shield
+  Shield,
+  Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,6 +15,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Dossiers', href: '/dossiers', icon: FolderOpen },
   { name: 'Mon Profil', href: '/profil', icon: User },
+  { name: 'Administration', href: '/admin', icon: Settings },
 ];
 
 export function Sidebar() {

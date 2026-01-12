@@ -95,6 +95,25 @@ export function useDossiers() {
   });
 }
 
+export function useDeletedDossiers() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['dossiers', 'deleted'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('dossiers')
+        .select('*')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false });
+
+      if (error) throw error;
+      return data as DossierRow[];
+    },
+    enabled: !!user,
+  });
+}
+
 export function useDossier(id: string) {
   const { user } = useAuth();
 
@@ -411,6 +430,55 @@ export function useDeleteDossier() {
     },
     onError: (error) => {
       toast.error('Erreur lors de la suppression du dossier');
+      console.error(error);
+    },
+  });
+}
+
+export function useRestoreDossier() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Get dossier info for audit
+      const { data: dossierData } = await supabase
+        .from('dossiers')
+        .select('raison_sociale, siren')
+        .eq('id', id)
+        .single();
+
+      // Restore by setting deleted_at to null
+      const { data, error } = await supabase
+        .from('dossiers')
+        .update({ deleted_at: null })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log audit action
+      if (user && dossierData) {
+        await logAuditAction(
+          user.id,
+          'RESTORE',
+          'dossier',
+          id,
+          id,
+          undefined,
+          { raison_sociale: dossierData.raison_sociale, siren: dossierData.siren }
+        );
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dossiers'] });
+      toast.success('Dossier restauré avec succès');
+    },
+    onError: (error) => {
+      toast.error('Erreur lors de la restauration du dossier');
       console.error(error);
     },
   });
