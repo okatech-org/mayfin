@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Building2, 
@@ -13,7 +13,12 @@ import {
   ArrowDown,
   Filter,
   X,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +68,8 @@ interface DossiersListProps {
   dossiers: DossierRow[];
 }
 
+const ITEMS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
+
 export function DossiersList({ dossiers }: DossiersListProps) {
   const [search, setSearch] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
@@ -73,7 +80,14 @@ export function DossiersList({ dossiers }: DossiersListProps) {
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [useLazyLoading, setUseLazyLoading] = useState(false);
+  const [visibleItems, setVisibleItems] = useState(25);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
   const maxMontant = useMemo(() => Math.max(...dossiers.map(d => d.montant_demande), 1000000), [dossiers]);
 
   const filteredAndSortedDossiers = useMemo(() => {
@@ -135,6 +149,53 @@ export function DossiersList({ dossiers }: DossiersListProps) {
     return result;
   }, [dossiers, search, statusFilters, typeFilters, montantRange, scoreRange, enProcedure, sortField, sortDirection]);
 
+  // Pagination calculations
+  const totalItems = filteredAndSortedDossiers.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
+  // Get paginated items
+  const paginatedDossiers = useMemo(() => {
+    if (useLazyLoading) {
+      return filteredAndSortedDossiers.slice(0, visibleItems);
+    }
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredAndSortedDossiers.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredAndSortedDossiers, currentPage, itemsPerPage, useLazyLoading, visibleItems]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+    setVisibleItems(25);
+  }, [search, statusFilters, typeFilters, montantRange, scoreRange, enProcedure, sortField, sortDirection]);
+
+  // Lazy loading with Intersection Observer
+  const handleLoadMore = useCallback(() => {
+    if (isLoadingMore || visibleItems >= filteredAndSortedDossiers.length) return;
+    
+    setIsLoadingMore(true);
+    // Simulate slight delay for smooth UX
+    setTimeout(() => {
+      setVisibleItems(prev => Math.min(prev + 25, filteredAndSortedDossiers.length));
+      setIsLoadingMore(false);
+    }, 300);
+  }, [isLoadingMore, visibleItems, filteredAndSortedDossiers.length]);
+
+  useEffect(() => {
+    if (!useLazyLoading || !loadMoreRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [useLazyLoading, handleLoadMore]);
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -163,6 +224,43 @@ export function DossiersList({ dossiers }: DossiersListProps) {
     setScoreRange([0, 100]);
     setEnProcedure(null);
     setSearch('');
+  };
+
+  // Pagination navigation helpers
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const getPageNumbers = () => {
+    const pages: (number | 'ellipsis')[] = [];
+    const showEllipsis = totalPages > 7;
+    
+    if (!showEllipsis) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    pages.push(1);
+    
+    if (currentPage > 3) {
+      pages.push('ellipsis');
+    }
+    
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    
+    if (currentPage < totalPages - 2) {
+      pages.push('ellipsis');
+    }
+    
+    if (totalPages > 1) {
+      pages.push(totalPages);
+    }
+    
+    return pages;
   };
 
   return (
@@ -311,10 +409,67 @@ export function DossiersList({ dossiers }: DossiersListProps) {
         </div>
       )}
 
-      {/* Results count */}
-      <p className="text-sm text-muted-foreground">
-        {filteredAndSortedDossiers.length} dossier{filteredAndSortedDossiers.length > 1 ? 's' : ''} trouvé{filteredAndSortedDossiers.length > 1 ? 's' : ''}
-      </p>
+      {/* Results count and pagination controls */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <p className="text-sm text-muted-foreground">
+            {useLazyLoading 
+              ? `${Math.min(visibleItems, totalItems)} sur ${totalItems} dossier${totalItems > 1 ? 's' : ''}`
+              : `${totalItems} dossier${totalItems > 1 ? 's' : ''} trouvé${totalItems > 1 ? 's' : ''}`
+            }
+            {!useLazyLoading && totalPages > 1 && ` (page ${currentPage}/${totalPages})`}
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {/* View mode toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Mode:</span>
+            <Button 
+              variant={!useLazyLoading ? "secondary" : "ghost"} 
+              size="sm"
+              onClick={() => setUseLazyLoading(false)}
+            >
+              Pagination
+            </Button>
+            <Button 
+              variant={useLazyLoading ? "secondary" : "ghost"} 
+              size="sm"
+              onClick={() => {
+                setUseLazyLoading(true);
+                setVisibleItems(25);
+              }}
+            >
+              Défilement infini
+            </Button>
+          </div>
+          
+          {/* Items per page selector */}
+          {!useLazyLoading && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Par page:</span>
+              <Select 
+                value={itemsPerPage.toString()} 
+                onValueChange={(v) => {
+                  setItemsPerPage(Number(v));
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-20 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ITEMS_PER_PAGE_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option.toString()}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Table */}
       <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
@@ -361,7 +516,7 @@ export function DossiersList({ dossiers }: DossiersListProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredAndSortedDossiers.map((dossier) => {
+              {paginatedDossiers.map((dossier) => {
                 const status = statusConfig[dossier.status] || statusConfig.brouillon;
                 return (
                   <tr key={dossier.id} className="hover:bg-muted/30 transition-colors">
@@ -452,7 +607,26 @@ export function DossiersList({ dossiers }: DossiersListProps) {
           </table>
         </div>
 
-        {filteredAndSortedDossiers.length === 0 && (
+        {/* Lazy loading trigger */}
+        {useLazyLoading && visibleItems < totalItems && (
+          <div 
+            ref={loadMoreRef} 
+            className="flex items-center justify-center py-6 border-t border-border"
+          >
+            {isLoadingMore ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-sm">Chargement...</span>
+              </div>
+            ) : (
+              <Button variant="ghost" onClick={handleLoadMore}>
+                Charger plus
+              </Button>
+            )}
+          </div>
+        )}
+
+        {paginatedDossiers.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Building2 className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-1">Aucun dossier trouvé</h3>
@@ -465,6 +639,73 @@ export function DossiersList({ dossiers }: DossiersListProps) {
           </div>
         )}
       </div>
+
+      {/* Pagination controls */}
+      {!useLazyLoading && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Affichage de {((currentPage - 1) * itemsPerPage) + 1} à {Math.min(currentPage * itemsPerPage, totalItems)} sur {totalItems}
+          </p>
+          
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => goToPage(1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            <div className="flex items-center gap-1 mx-2">
+              {getPageNumbers().map((page, index) => (
+                page === 'ellipsis' ? (
+                  <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">...</span>
+                ) : (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "outline"}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => goToPage(page)}
+                  >
+                    {page}
+                  </Button>
+                )
+              ))}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => goToPage(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
