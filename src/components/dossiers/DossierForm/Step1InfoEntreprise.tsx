@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -20,6 +22,9 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Loader2, Search, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useInseeValidation } from '@/hooks/useInseeValidation';
+import { toast } from 'sonner';
 
 const schema = z.object({
   raisonSociale: z.string().min(1, 'La raison sociale est requise'),
@@ -45,6 +50,9 @@ interface Step1Props {
 }
 
 export function Step1InfoEntreprise({ data, onUpdate }: Step1Props) {
+  const [sirenValidated, setSirenValidated] = useState(false);
+  const { validateSiren, isLoading: validatingInsee, error: inseeError } = useInseeValidation();
+
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -65,11 +73,59 @@ export function Step1InfoEntreprise({ data, onUpdate }: Step1Props) {
   });
 
   const enProcedure = form.watch('enProcedure');
+  const siren = form.watch('siren');
 
   // Auto-save on blur
   const handleBlur = () => {
     const values = form.getValues();
     onUpdate(values);
+  };
+
+  // Validate SIREN and auto-fill data
+  const handleValidateSiren = async () => {
+    const sirenValue = form.getValues('siren');
+    
+    if (!/^\d{9}$/.test(sirenValue)) {
+      toast.error('Le SIREN doit contenir 9 chiffres');
+      return;
+    }
+
+    const inseeData = await validateSiren(sirenValue);
+    
+    if (inseeData) {
+      // Auto-fill form with INSEE data
+      form.setValue('raisonSociale', inseeData.raisonSociale);
+      form.setValue('siret', inseeData.siret);
+      form.setValue('formeJuridique', inseeData.formeJuridique);
+      form.setValue('dateCreation', inseeData.dateCreation);
+      form.setValue('codeNaf', inseeData.codeNaf);
+      form.setValue('adresseSiege', inseeData.adresseSiege);
+      form.setValue('nbSalaries', inseeData.effectif);
+      
+      // Map secteur
+      const secteurMap: Record<string, string> = {
+        'Construction': 'BTP',
+        'Restauration': 'RESTAURATION',
+        'Commerce': 'COMMERCE',
+        'Services': 'SERVICES',
+        'Conseil': 'SERVICES',
+        'Télécommunications': 'TECH',
+      };
+      const secteur = Object.entries(secteurMap).find(([key]) => 
+        inseeData.secteurActivite.toLowerCase().includes(key.toLowerCase())
+      );
+      if (secteur) {
+        form.setValue('secteurActivite', secteur[1]);
+      }
+      
+      setSirenValidated(true);
+      toast.success('Données INSEE récupérées avec succès');
+      
+      // Update parent
+      handleBlur();
+    } else {
+      setSirenValidated(false);
+    }
   };
 
   return (
@@ -83,6 +139,65 @@ export function Step1InfoEntreprise({ data, onUpdate }: Step1Props) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* SIREN with validation */}
+          <FormField
+            control={form.control}
+            name="siren"
+            render={({ field }) => (
+              <FormItem className="md:col-span-2">
+                <FormLabel>SIREN *</FormLabel>
+                <div className="flex gap-2">
+                  <FormControl>
+                    <div className="relative flex-1">
+                      <Input 
+                        {...field} 
+                        onBlur={handleBlur} 
+                        placeholder="123456789" 
+                        maxLength={9}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          setSirenValidated(false);
+                        }}
+                        className={sirenValidated ? "pr-10 border-success" : ""}
+                      />
+                      {sirenValidated && (
+                        <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-success" />
+                      )}
+                    </div>
+                  </FormControl>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleValidateSiren}
+                    disabled={validatingInsee || siren.length !== 9}
+                  >
+                    {validatingInsee ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4 mr-2" />
+                        Valider INSEE
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {inseeError && (
+                  <div className="flex items-center gap-2 text-sm text-destructive mt-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {inseeError}
+                  </div>
+                )}
+                {sirenValidated && (
+                  <Badge variant="outline" className="mt-2 text-success border-success">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    SIREN validé par l'INSEE
+                  </Badge>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           <FormField
             control={form.control}
             name="raisonSociale"
@@ -91,20 +206,6 @@ export function Step1InfoEntreprise({ data, onUpdate }: Step1Props) {
                 <FormLabel>Raison sociale *</FormLabel>
                 <FormControl>
                   <Input {...field} onBlur={handleBlur} placeholder="Nom de l'entreprise" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="siren"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>SIREN *</FormLabel>
-                <FormControl>
-                  <Input {...field} onBlur={handleBlur} placeholder="123456789" maxLength={9} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -131,7 +232,7 @@ export function Step1InfoEntreprise({ data, onUpdate }: Step1Props) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Forme juridique *</FormLabel>
-                <Select onValueChange={(value) => { field.onChange(value); handleBlur(); }} defaultValue={field.value}>
+                <Select onValueChange={(value) => { field.onChange(value); handleBlur(); }} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Sélectionner" />
@@ -187,7 +288,7 @@ export function Step1InfoEntreprise({ data, onUpdate }: Step1Props) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Secteur d'activité</FormLabel>
-                <Select onValueChange={(value) => { field.onChange(value); handleBlur(); }} defaultValue={field.value}>
+                <Select onValueChange={(value) => { field.onChange(value); handleBlur(); }} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Sélectionner" />
@@ -220,6 +321,7 @@ export function Step1InfoEntreprise({ data, onUpdate }: Step1Props) {
                   <Input 
                     type="number" 
                     {...field} 
+                    value={field.value ?? ''}
                     onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
                     onBlur={handleBlur} 
                     placeholder="0" 
@@ -279,7 +381,7 @@ export function Step1InfoEntreprise({ data, onUpdate }: Step1Props) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Type de procédure</FormLabel>
-                    <Select onValueChange={(value) => { field.onChange(value); handleBlur(); }} defaultValue={field.value}>
+                    <Select onValueChange={(value) => { field.onChange(value); handleBlur(); }} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Sélectionner" />
