@@ -1,7 +1,8 @@
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, Mail, Phone, Building2, Save } from 'lucide-react';
+import { User, Mail, Phone, Save, Loader2 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -16,32 +17,53 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
+import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const schema = z.object({
   firstName: z.string().min(1, 'Le prénom est requis'),
   lastName: z.string().min(1, 'Le nom est requis'),
-  email: z.string().email('Email invalide'),
   phone: z.string().optional(),
-  poste: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
 
 export default function ProfilPage() {
+  const { user } = useAuth();
+  const { data: profile, isLoading } = useProfile();
+  const updateProfile = useUpdateProfile();
+
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      firstName: 'Jean',
-      lastName: 'Dupont',
-      email: 'jean.dupont@bnpparibas.com',
-      phone: '06 12 34 56 78',
-      poste: 'Chargé d\'affaires professionnels',
+      firstName: '',
+      lastName: '',
+      phone: '',
     },
   });
 
-  const onSubmit = (data: FormData) => {
-    console.log('Profile updated:', data);
-    toast.success('Profil mis à jour avec succès');
+  useEffect(() => {
+    if (profile) {
+      form.reset({
+        firstName: profile.first_name || '',
+        lastName: profile.last_name || '',
+        phone: profile.phone || '',
+      });
+    }
+  }, [profile, form]);
+
+  const onSubmit = async (data: FormData) => {
+    try {
+      await updateProfile.mutateAsync({
+        first_name: data.firstName,
+        last_name: data.lastName,
+        phone: data.phone || undefined,
+      });
+      toast.success('Profil mis à jour avec succès');
+    } catch (error) {
+      toast.error('Erreur lors de la mise à jour du profil');
+    }
   };
 
   return (
@@ -67,97 +89,93 @@ export default function ProfilPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {isLoading ? (
+              <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="firstName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Prénom</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="lastName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nom</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div>
+                    <FormLabel className="text-muted-foreground">Email professionnel</FormLabel>
+                    <div className="relative mt-2">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        value={user?.email || ''} 
+                        disabled 
+                        className="pl-10 bg-muted" 
+                      />
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      L'email ne peut pas être modifié
+                    </p>
+                  </div>
+
                   <FormField
                     control={form.control}
-                    name="firstName"
+                    name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Prénom</FormLabel>
+                        <FormLabel>Téléphone</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <div className="relative">
+                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input {...field} className="pl-10" placeholder="06 12 34 56 78" />
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="lastName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nom</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email professionnel</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input {...field} className="pl-10" />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Téléphone</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input {...field} className="pl-10" />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="poste"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Poste</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input {...field} className="pl-10" />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end">
-                  <Button type="submit">
-                    <Save className="h-4 w-4 mr-2" />
-                    Enregistrer
-                  </Button>
-                </div>
-              </form>
-            </Form>
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={updateProfile.isPending}>
+                      {updateProfile.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      Enregistrer
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            )}
           </CardContent>
         </Card>
       </div>
