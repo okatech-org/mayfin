@@ -13,10 +13,14 @@ import {
   CheckCircle2,
   FileText,
   Banknote,
-  Download
+  Download,
+  Calculator
 } from 'lucide-react';
-import { calculerRatios, calculerScoring } from '@/lib/scoring';
+import { calculerScoring } from '@/lib/scoring';
 import { exportScoringToPDF } from '@/lib/exportPDF';
+import { useUpdateDossierStatus } from '@/hooks/useDossiers';
+import { useAuth } from '@/hooks/useAuth';
+import { logAuditAction } from '@/hooks/useAuditLogs';
 import type { DonneesFinancieres, ScoringResult } from '@/types/dossier.types';
 import type { DossierRow, DonneesFinancieresRow } from '@/hooks/useDossiers';
 import { cn } from '@/lib/utils';
@@ -28,6 +32,9 @@ interface ScoringViewProps {
 }
 
 export function ScoringView({ dossier, donneesFinancieres }: ScoringViewProps) {
+  const { user } = useAuth();
+  const updateStatus = useUpdateDossierStatus();
+
   // Transform donnees financieres
   const financieresFormatted: DonneesFinancieres[] = useMemo(() => {
     return donneesFinancieres.map(df => ({
@@ -156,6 +163,39 @@ export function ScoringView({ dossier, donneesFinancieres }: ScoringViewProps) {
     }
   };
 
+  const handleCalculateScoring = async () => {
+    if (!scoring || !user) return;
+
+    try {
+      // Update dossier with scoring
+      await updateStatus.mutateAsync({
+        id: dossier.id,
+        status: 'en_analyse',
+        score_global: scoring.scoreGlobal,
+        recommandation: recommendation?.decision,
+      });
+
+      // Log audit action for scoring calculation
+      await logAuditAction(
+        user.id,
+        'CALCULATE_SCORING',
+        'scoring',
+        dossier.id,
+        dossier.id,
+        { score_global: dossier.score_global },
+        { 
+          score_global: scoring.scoreGlobal,
+          statut: scoring.statut,
+          details: scoring.details.map(d => ({ critere: d.critere, score: d.scoreObtenu }))
+        }
+      );
+
+      toast.success('Scoring calculé et enregistré');
+    } catch (error) {
+      toast.error('Erreur lors de l\'enregistrement du scoring');
+    }
+  };
+
   const getStatutBadge = (statut: ScoringResult['statut']) => {
     switch (statut) {
       case 'accord_favorable':
@@ -218,8 +258,15 @@ export function ScoringView({ dossier, donneesFinancieres }: ScoringViewProps) {
                 )}
               </div>
 
-              {/* Export button */}
-              <div className="flex-shrink-0">
+              {/* Actions */}
+              <div className="flex-shrink-0 flex flex-col gap-2">
+                <Button 
+                  onClick={handleCalculateScoring} 
+                  disabled={updateStatus.isPending}
+                >
+                  <Calculator className="h-4 w-4 mr-2" />
+                  Enregistrer le scoring
+                </Button>
                 <Button onClick={handleExportPDF} variant="outline">
                   <Download className="h-4 w-4 mr-2" />
                   Export PDF
@@ -432,16 +479,8 @@ export function ScoringView({ dossier, donneesFinancieres }: ScoringViewProps) {
                 </ul>
               </div>
 
-              <div className={cn(
-                "p-4 rounded-lg border-2 text-center",
-                scoring.statut === 'accord_favorable' ? "bg-success/10 border-success" :
-                scoring.statut === 'accord_conditionne' ? "bg-warning/10 border-warning" :
-                scoring.statut === 'etude_approfondie' ? "bg-amber-500/10 border-amber-500" :
-                "bg-destructive/10 border-destructive"
-              )}>
-                <p className="text-lg font-bold">
-                  💡 Recommandation finale : {recommendation.decision}
-                </p>
+              <div className="mt-6 p-4 bg-primary/10 border border-primary/30 rounded-lg text-center">
+                <h4 className="text-lg font-bold text-primary">{recommendation.decision}</h4>
               </div>
             </div>
           </CardContent>

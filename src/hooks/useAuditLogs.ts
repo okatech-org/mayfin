@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import type { Json } from '@/integrations/supabase/types';
 
 export interface AuditLogRow {
   id: string;
@@ -53,25 +54,25 @@ export function useCreateAuditLog() {
       old_values?: Record<string, unknown>;
       new_values?: Record<string, unknown>;
     }) => {
-      // Using any to work around type regeneration timing
       const insertData = {
         user_id: user!.id,
         dossier_id: log.dossier_id || null,
         action: log.action,
         entity_type: log.entity_type,
         entity_id: log.entity_id || null,
-        old_values: log.old_values || null,
-        new_values: log.new_values || null,
+        old_values: (log.old_values || null) as Json,
+        new_values: (log.new_values || null) as Json,
         user_agent: navigator.userAgent,
       };
+
       const { data, error } = await supabase
-        .from('audit_logs' as 'profiles')
-        .insert(insertData as never)
+        .from('audit_logs')
+        .insert(insertData)
         .select()
         .single();
 
       if (error) throw error;
-      return data as unknown as AuditLogRow;
+      return data as AuditLogRow;
     },
     onSuccess: (data: AuditLogRow) => {
       queryClient.invalidateQueries({ queryKey: ['audit_logs'] });
@@ -98,13 +99,14 @@ export async function logAuditAction(
     action,
     entity_type: entityType,
     entity_id: entityId || null,
-    old_values: oldValues || null,
-    new_values: newValues || null,
+    old_values: (oldValues || null) as Json,
+    new_values: (newValues || null) as Json,
     user_agent: navigator.userAgent,
   };
+
   const { error } = await supabase
-    .from('audit_logs' as 'profiles')
-    .insert(insertData as never);
+    .from('audit_logs')
+    .insert(insertData);
 
   if (error) {
     console.error('Failed to log audit action:', error);
