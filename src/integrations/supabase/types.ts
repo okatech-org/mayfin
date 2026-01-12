@@ -294,15 +294,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "dossiers_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["user_id"]
-          },
-        ]
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -338,15 +330,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["user_id"]
-          },
-        ]
+        Relationships: []
       }
       scoring_history: {
         Row: {
@@ -378,13 +362,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "scoring_history_calculated_by_fkey"
-            columns: ["calculated_by"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "scoring_history_dossier_id_fkey"
             columns: ["dossier_id"]
             isOneToOne: false
@@ -412,28 +389,11 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_roles"
-            referencedColumns: ["user_id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
-      users_with_roles: {
-        Row: {
-          created_at: string | null
-          email: string | null
-          role: Database["public"]["Enums"]["app_role"] | null
-          role_id: string | null
-          user_id: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       get_all_users_with_roles: {
