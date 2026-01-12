@@ -38,7 +38,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useDeletedDossiers, useRestoreDossier } from '@/hooks/useDossiers';
+import { UserRolesManager } from '@/components/admin/UserRolesManager';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -86,9 +88,21 @@ export default function AdminPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Administration</h1>
           <p className="text-muted-foreground mt-1">
-            Gestion des dossiers supprimés et restauration
+            Gestion des utilisateurs et des dossiers supprimés
           </p>
         </div>
+
+        <Tabs defaultValue="users" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="users">Utilisateurs</TabsTrigger>
+            <TabsTrigger value="dossiers">Dossiers supprimés</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="users" className="space-y-6">
+            <UserRolesManager />
+          </TabsContent>
+
+          <TabsContent value="dossiers" className="space-y-6">
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -308,6 +322,8 @@ export default function AdminPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );
