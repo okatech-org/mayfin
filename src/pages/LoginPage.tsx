@@ -14,6 +14,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 const schema = z.object({
   email: z.string().email('Email invalide'),
@@ -24,8 +26,10 @@ type FormData = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { signIn, signUp } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -37,9 +41,18 @@ export default function LoginPage() {
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
-    // Simulate login
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const { error } = isSignUp 
+      ? await signUp(data.email, data.password)
+      : await signIn(data.email, data.password);
+    
     setIsLoading(false);
+    
+    if (error) {
+      toast.error(error.message || 'Erreur de connexion');
+      return;
+    }
+    
+    toast.success(isSignUp ? 'Compte créé avec succès' : 'Connexion réussie');
     navigate('/');
   };
 
@@ -150,14 +163,24 @@ export default function LoginPage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Connexion en cours...
+                    {isSignUp ? 'Création...' : 'Connexion en cours...'}
                   </>
                 ) : (
-                  'Se connecter'
+                  isSignUp ? 'Créer un compte' : 'Se connecter'
                 )}
               </Button>
             </form>
           </Form>
+
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="text-sm text-primary hover:underline"
+            >
+              {isSignUp ? 'Déjà un compte ? Se connecter' : 'Pas de compte ? S\'inscrire'}
+            </button>
+          </div>
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             Application à usage professionnel uniquement

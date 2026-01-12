@@ -14,7 +14,312 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      documents: {
+        Row: {
+          annee_exercice: number | null
+          chemin_fichier: string
+          dossier_id: string
+          id: string
+          mime_type: string
+          nom_fichier: string
+          taille_octets: number
+          type_document: string
+          uploaded_at: string
+        }
+        Insert: {
+          annee_exercice?: number | null
+          chemin_fichier: string
+          dossier_id: string
+          id?: string
+          mime_type: string
+          nom_fichier: string
+          taille_octets: number
+          type_document: string
+          uploaded_at?: string
+        }
+        Update: {
+          annee_exercice?: number | null
+          chemin_fichier?: string
+          dossier_id?: string
+          id?: string
+          mime_type?: string
+          nom_fichier?: string
+          taille_octets?: number
+          type_document?: string
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      donnees_financieres: {
+        Row: {
+          actif_circulant: number | null
+          annee_exercice: number
+          capacite_autofinancement: number | null
+          capitaux_propres: number | null
+          chiffre_affaires: number | null
+          creances_clients: number | null
+          created_at: string
+          dettes_financieres: number | null
+          dettes_fournisseurs: number | null
+          dossier_id: string
+          ebitda: number | null
+          id: string
+          passif_circulant: number | null
+          resultat_net: number | null
+          stocks: number | null
+          total_actif: number | null
+          total_passif: number | null
+          tresorerie: number | null
+        }
+        Insert: {
+          actif_circulant?: number | null
+          annee_exercice: number
+          capacite_autofinancement?: number | null
+          capitaux_propres?: number | null
+          chiffre_affaires?: number | null
+          creances_clients?: number | null
+          created_at?: string
+          dettes_financieres?: number | null
+          dettes_fournisseurs?: number | null
+          dossier_id: string
+          ebitda?: number | null
+          id?: string
+          passif_circulant?: number | null
+          resultat_net?: number | null
+          stocks?: number | null
+          total_actif?: number | null
+          total_passif?: number | null
+          tresorerie?: number | null
+        }
+        Update: {
+          actif_circulant?: number | null
+          annee_exercice?: number
+          capacite_autofinancement?: number | null
+          capitaux_propres?: number | null
+          chiffre_affaires?: number | null
+          creances_clients?: number | null
+          created_at?: string
+          dettes_financieres?: number | null
+          dettes_fournisseurs?: number | null
+          dossier_id?: string
+          ebitda?: number | null
+          id?: string
+          passif_circulant?: number | null
+          resultat_net?: number | null
+          stocks?: number | null
+          total_actif?: number | null
+          total_passif?: number | null
+          tresorerie?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "donnees_financieres_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dossiers: {
+        Row: {
+          adresse_siege: string | null
+          code_naf: string | null
+          created_at: string
+          date_creation: string | null
+          date_jugement: string | null
+          deleted_at: string | null
+          description_bien: string | null
+          dirigeant_adresse: string | null
+          dirigeant_civilite: string | null
+          dirigeant_date_naissance: string | null
+          dirigeant_email: string | null
+          dirigeant_experience: number | null
+          dirigeant_fiche_ficp: boolean | null
+          dirigeant_nom: string
+          dirigeant_prenom: string
+          dirigeant_telephone: string | null
+          duree_mois: number | null
+          en_procedure: boolean
+          forme_juridique: string | null
+          id: string
+          montant_demande: number
+          nature_bien: string | null
+          nb_salaries: number | null
+          objet_financement: string | null
+          raison_sociale: string
+          recommandation: string | null
+          score_global: number | null
+          secteur_activite: string | null
+          siren: string
+          siret: string | null
+          status: string
+          tribunal: string | null
+          type_financement: string
+          type_procedure: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adresse_siege?: string | null
+          code_naf?: string | null
+          created_at?: string
+          date_creation?: string | null
+          date_jugement?: string | null
+          deleted_at?: string | null
+          description_bien?: string | null
+          dirigeant_adresse?: string | null
+          dirigeant_civilite?: string | null
+          dirigeant_date_naissance?: string | null
+          dirigeant_email?: string | null
+          dirigeant_experience?: number | null
+          dirigeant_fiche_ficp?: boolean | null
+          dirigeant_nom: string
+          dirigeant_prenom: string
+          dirigeant_telephone?: string | null
+          duree_mois?: number | null
+          en_procedure?: boolean
+          forme_juridique?: string | null
+          id?: string
+          montant_demande: number
+          nature_bien?: string | null
+          nb_salaries?: number | null
+          objet_financement?: string | null
+          raison_sociale: string
+          recommandation?: string | null
+          score_global?: number | null
+          secteur_activite?: string | null
+          siren: string
+          siret?: string | null
+          status?: string
+          tribunal?: string | null
+          type_financement: string
+          type_procedure?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adresse_siege?: string | null
+          code_naf?: string | null
+          created_at?: string
+          date_creation?: string | null
+          date_jugement?: string | null
+          deleted_at?: string | null
+          description_bien?: string | null
+          dirigeant_adresse?: string | null
+          dirigeant_civilite?: string | null
+          dirigeant_date_naissance?: string | null
+          dirigeant_email?: string | null
+          dirigeant_experience?: number | null
+          dirigeant_fiche_ficp?: boolean | null
+          dirigeant_nom?: string
+          dirigeant_prenom?: string
+          dirigeant_telephone?: string | null
+          duree_mois?: number | null
+          en_procedure?: boolean
+          forme_juridique?: string | null
+          id?: string
+          montant_demande?: number
+          nature_bien?: string | null
+          nb_salaries?: number | null
+          objet_financement?: string | null
+          raison_sociale?: string
+          recommandation?: string | null
+          score_global?: number | null
+          secteur_activite?: string | null
+          siren?: string
+          siret?: string | null
+          status?: string
+          tribunal?: string | null
+          type_financement?: string
+          type_procedure?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          phone: string | null
+          role: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          role?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          role?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      scoring_history: {
+        Row: {
+          calculated_at: string
+          calculated_by: string | null
+          details_json: Json
+          dossier_id: string
+          id: string
+          score_global: number
+          statut: string
+        }
+        Insert: {
+          calculated_at?: string
+          calculated_by?: string | null
+          details_json: Json
+          dossier_id: string
+          id?: string
+          score_global: number
+          statut: string
+        }
+        Update: {
+          calculated_at?: string
+          calculated_by?: string | null
+          details_json?: Json
+          dossier_id?: string
+          id?: string
+          score_global?: number
+          statut?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scoring_history_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

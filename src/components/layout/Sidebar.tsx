@@ -8,6 +8,7 @@ import {
   Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -17,6 +18,7 @@ const navigation = [
 
 export function Sidebar() {
   const location = useLocation();
+  const { user, signOut } = useAuth();
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
@@ -78,14 +80,17 @@ export function Sidebar() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-sidebar-foreground truncate">
-                Jean Dupont
+                {user?.email?.split('@')[0] || 'Utilisateur'}
               </p>
               <p className="text-xs text-sidebar-foreground/60">
                 Chargé d'affaires
               </p>
             </div>
           </div>
-          <button className="sidebar-link w-full mt-2 text-destructive hover:text-destructive hover:bg-destructive/10">
+          <button 
+            onClick={signOut}
+            className="sidebar-link w-full mt-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
             <LogOut className="h-5 w-5" />
             <span>Déconnexion</span>
           </button>
