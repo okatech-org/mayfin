@@ -1,15 +1,22 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-const data = [
-  { month: 'Jan', valides: 12, refuses: 3, enCours: 5 },
-  { month: 'Fév', valides: 15, refuses: 2, enCours: 8 },
-  { month: 'Mar', valides: 18, refuses: 4, enCours: 6 },
-  { month: 'Avr', valides: 14, refuses: 5, enCours: 9 },
-  { month: 'Mai', valides: 20, refuses: 3, enCours: 7 },
-  { month: 'Juin', valides: 22, refuses: 2, enCours: 4 },
-];
+import { useMonthlyData } from '@/hooks/useDashboardStats';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function MonthlyChart() {
+  const { data, isLoading } = useMonthlyData();
+
+  if (isLoading) {
+    return (
+      <div className="bg-card rounded-xl border border-border shadow-card p-6">
+        <Skeleton className="h-6 w-40 mb-2" />
+        <Skeleton className="h-4 w-32 mb-4" />
+        <Skeleton className="h-64 w-full rounded-lg" />
+      </div>
+    );
+  }
+
+  const chartData = data || [];
+
   return (
     <div className="bg-card rounded-xl border border-border shadow-card p-6">
       <div className="mb-4">
@@ -18,7 +25,7 @@ export function MonthlyChart() {
       </div>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} barGap={4}>
+          <BarChart data={chartData} barGap={4}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis 
               dataKey="month" 

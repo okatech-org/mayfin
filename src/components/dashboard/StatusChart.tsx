@@ -1,15 +1,15 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { useFinancementData } from '@/hooks/useDashboardStats';
+import { useStatusData } from '@/hooks/useDashboardStats';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function FinancementChart() {
-  const { data, isLoading } = useFinancementData();
+export function StatusChart() {
+  const { data, isLoading } = useStatusData();
 
   if (isLoading) {
     return (
       <div className="bg-card rounded-xl border border-border shadow-card p-6">
-        <Skeleton className="h-6 w-44 mb-2" />
-        <Skeleton className="h-4 w-28 mb-4" />
+        <Skeleton className="h-6 w-40 mb-2" />
+        <Skeleton className="h-4 w-32 mb-4" />
         <Skeleton className="h-64 w-full rounded-lg" />
       </div>
     );
@@ -18,8 +18,8 @@ export function FinancementChart() {
   if (!data || data.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-border shadow-card p-6">
-        <h3 className="text-lg font-semibold text-foreground">Répartition financements</h3>
-        <p className="text-sm text-muted-foreground mb-4">Par type de produit</p>
+        <h3 className="text-lg font-semibold text-foreground">Répartition par statut</h3>
+        <p className="text-sm text-muted-foreground mb-4">Distribution des dossiers</p>
         <div className="h-64 flex items-center justify-center text-muted-foreground">
           Aucune donnée disponible
         </div>
@@ -30,8 +30,8 @@ export function FinancementChart() {
   return (
     <div className="bg-card rounded-xl border border-border shadow-card p-6">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-foreground">Répartition financements</h3>
-        <p className="text-sm text-muted-foreground">Par type de produit</p>
+        <h3 className="text-lg font-semibold text-foreground">Répartition par statut</h3>
+        <p className="text-sm text-muted-foreground">Distribution des dossiers</p>
       </div>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
@@ -40,9 +40,9 @@ export function FinancementChart() {
               data={data}
               cx="50%"
               cy="50%"
-              innerRadius={60}
-              outerRadius={90}
-              paddingAngle={4}
+              innerRadius={50}
+              outerRadius={80}
+              paddingAngle={3}
               dataKey="value"
             >
               {data.map((entry, index) => (
@@ -55,7 +55,7 @@ export function FinancementChart() {
                 border: '1px solid hsl(var(--border))',
                 borderRadius: '8px',
               }}
-              formatter={(value: number) => [`${value}%`, '']}
+              formatter={(value: number) => [value, 'Dossiers']}
             />
             <Legend 
               verticalAlign="bottom"

@@ -23,7 +23,8 @@ import {
   Briefcase,
   Euro,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  History
 } from 'lucide-react';
 import { useDossier, useDossierDocuments, useDossierFinancieres, useUpdateDossierStatus } from '@/hooks/useDossiers';
 import { AnalyseManuelle } from '@/components/dossiers/AnalyseManuelle';
@@ -32,6 +33,9 @@ import { DonneesFinancieresForm } from '@/components/dossiers/DonneesFinancieres
 import { DocumentsList } from '@/components/dossiers/DocumentsList';
 import { calculerScoring } from '@/lib/scoring';
 import { toast } from 'sonner';
+import { AuditHistory } from '@/components/dossiers/AuditHistory';
+import { logAuditAction } from '@/hooks/useAuditLogs';
+import { useAuth } from '@/hooks/useAuth';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -256,7 +260,7 @@ export default function DossierDetailPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-flex">
+          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
             <TabsTrigger value="infos" className="gap-2">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Infos</span>
@@ -276,6 +280,10 @@ export default function DossierDetailPage() {
             <TabsTrigger value="score" className="gap-2">
               <Target className="h-4 w-4" />
               <span className="hidden sm:inline">Score</span>
+            </TabsTrigger>
+            <TabsTrigger value="historique" className="gap-2">
+              <History className="h-4 w-4" />
+              <span className="hidden sm:inline">Historique</span>
             </TabsTrigger>
           </TabsList>
 
@@ -477,6 +485,11 @@ export default function DossierDetailPage() {
           {/* Score Tab */}
           <TabsContent value="score" className="mt-6">
             <ScoringView dossier={dossier} donneesFinancieres={financieres} />
+          </TabsContent>
+
+          {/* Historique Tab */}
+          <TabsContent value="historique" className="mt-6">
+            <AuditHistory dossierId={id!} />
           </TabsContent>
         </Tabs>
       </div>
