@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ScoreGauge } from './ScoreGauge';
 import { 
   TrendingUp, 
@@ -11,12 +12,15 @@ import {
   AlertTriangle,
   CheckCircle2,
   FileText,
-  Banknote
+  Banknote,
+  Download
 } from 'lucide-react';
 import { calculerRatios, calculerScoring } from '@/lib/scoring';
+import { exportScoringToPDF } from '@/lib/exportPDF';
 import type { DonneesFinancieres, ScoringResult } from '@/types/dossier.types';
 import type { DossierRow, DonneesFinancieresRow } from '@/hooks/useDossiers';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface ScoringViewProps {
   dossier: DossierRow;
@@ -143,6 +147,15 @@ export function ScoringView({ dossier, donneesFinancieres }: ScoringViewProps) {
     };
   }, [scoring, financieresFormatted, dossier]);
 
+  const handleExportPDF = () => {
+    try {
+      exportScoringToPDF({ dossier, donneesFinancieres });
+      toast.success('Rapport PDF généré avec succès');
+    } catch (error) {
+      toast.error('Erreur lors de la génération du PDF');
+    }
+  };
+
   const getStatutBadge = (statut: ScoringResult['statut']) => {
     switch (statut) {
       case 'accord_favorable':
@@ -203,6 +216,14 @@ export function ScoringView({ dossier, donneesFinancieres }: ScoringViewProps) {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Export button */}
+              <div className="flex-shrink-0">
+                <Button onClick={handleExportPDF} variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export PDF
+                </Button>
               </div>
             </div>
           </CardContent>
