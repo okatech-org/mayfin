@@ -1,12 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FolderOpen, 
-  User, 
+import {
+  LayoutDashboard,
+  FolderOpen,
+  User,
   LogOut,
   TrendingUp,
   Shield,
-  Settings
+  Settings,
+  Sparkles,
+  ServerCog
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,12 +17,14 @@ import { Badge } from '@/components/ui/badge';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Nouveau dossier IA', href: '/dossiers/nouveau-ia', icon: Sparkles },
   { name: 'Dossiers', href: '/dossiers', icon: FolderOpen },
   { name: 'Mon Profil', href: '/profil', icon: User },
 ];
 
 const adminNavigation = [
   { name: 'Administration', href: '/admin', icon: Settings },
+  { name: 'Admin Système', href: '/system-admin', icon: ServerCog },
 ];
 
 export function Sidebar() {
@@ -56,9 +60,9 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1">
           {navigation.map((item) => {
-            const isActive = location.pathname === item.href || 
+            const isActive = location.pathname === item.href ||
               (item.href !== '/' && location.pathname.startsWith(item.href));
-            
+
             return (
               <Link
                 key={item.name}
@@ -83,7 +87,7 @@ export function Sidebar() {
               </p>
               {adminNavigation.map((item) => {
                 const isActive = location.pathname === item.href;
-                
+
                 return (
                   <Link
                     key={item.name}
@@ -129,8 +133,8 @@ export function Sidebar() {
                 {user?.email?.split('@')[0] || 'Utilisateur'}
               </p>
               <div className="flex items-center gap-2">
-                <Badge 
-                  variant={isAdmin ? "default" : "secondary"} 
+                <Badge
+                  variant={isAdmin ? "default" : "secondary"}
                   className="text-[10px] px-1.5 py-0"
                 >
                   {getRoleLabel(role)}
@@ -138,7 +142,7 @@ export function Sidebar() {
               </div>
             </div>
           </div>
-          <button 
+          <button
             onClick={signOut}
             className="sidebar-link w-full mt-2 text-destructive hover:text-destructive hover:bg-destructive/10"
           >

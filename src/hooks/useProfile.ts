@@ -9,17 +9,29 @@ export interface Profile {
   last_name: string | null;
   email: string | null;
   phone: string | null;
+  date_of_birth: string | null;
+  position: string | null;
   role: string | null;
   created_at: string;
   updated_at: string;
 }
 
+export interface ProfileUpdateData {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  date_of_birth?: string;
+  position?: string;
+}
+
+// Fetch current user's profile
 export function useProfile() {
   const { user } = useAuth();
 
   return useQuery({
     queryKey: ['profile', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<Profile | null> => {
       if (!user?.id) return null;
 
       const { data, error } = await supabase
@@ -29,23 +41,21 @@ export function useProfile() {
         .maybeSingle();
 
       if (error) throw error;
+      // Cast to Profile - date_of_birth and position may not exist yet in DB
       return data as Profile | null;
     },
     enabled: !!user?.id,
   });
 }
 
+// Update current user's profile
 export function useUpdateProfile() {
-  const queryClient = useQueryClient();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (updates: {
-      first_name?: string;
-      last_name?: string;
-      phone?: string;
-    }) => {
-      if (!user?.id) throw new Error('Non authentifié');
+    mutationFn: async (data: ProfileUpdateData) => {
+      if (!user?.id) throw new Error('User not authenticated');
 
       // Check if profile exists
       const { data: existing } = await supabase
@@ -56,33 +66,28 @@ export function useUpdateProfile() {
 
       if (existing) {
         // Update existing profile
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('profiles')
           .update({
-            ...updates,
+            ...data,
             updated_at: new Date().toISOString(),
           })
-          .eq('user_id', user.id)
-          .select()
-          .single();
+          .eq('user_id', user.id);
 
         if (error) throw error;
-        return data;
       } else {
         // Create new profile
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('profiles')
           .insert({
             user_id: user.id,
             email: user.email,
-            ...updates,
-          })
-          .select()
-          .single();
+            ...data,
+          });
 
         if (error) throw error;
-        return data;
       }
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
