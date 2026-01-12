@@ -19,7 +19,7 @@ export default function SmartImportPage() {
     const [siret, setSiret] = useState('');
     const [montantDemande, setMontantDemande] = useState('');
 
-    const { step, progress, result, error, isAnalyzing, analyzeDocuments, reset } = useDocumentAnalysis();
+    const { step, progress, result, error, isAnalyzing, isDemoMode, analyzeDocuments, reset } = useDocumentAnalysis();
     const createDossier = useCreateDossier();
 
     const handleAnalyze = useCallback(async () => {
@@ -151,12 +151,12 @@ export default function SmartImportPage() {
                                         id="siret"
                                         value={siret}
                                         onChange={(e) => setSiret(e.target.value)}
-                                        placeholder="Si non trouvé dans les documents"
+                                        placeholder="Entreprise existante ou vide si création"
                                         maxLength={14}
                                         disabled={isAnalyzing}
                                     />
                                     <p className="text-xs text-muted-foreground">
-                                        Renseignez uniquement si l'IA ne le trouve pas
+                                        Laissez vide pour un projet de création d'entreprise
                                     </p>
                                 </div>
 
@@ -167,12 +167,23 @@ export default function SmartImportPage() {
                                         type="number"
                                         value={montantDemande}
                                         onChange={(e) => setMontantDemande(e.target.value)}
-                                        placeholder="Laissez vide pour une estimation"
+                                        placeholder="Montant du financement souhaité"
                                         disabled={isAnalyzing}
                                     />
                                     <p className="text-xs text-muted-foreground">
-                                        L'IA suggérera le seuil accordable si non renseigné
+                                        Obligatoire pour les créations d'entreprise
                                     </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 pt-4 border-t">
+                                <p className="text-sm text-muted-foreground mb-2">
+                                    📋 <span className="font-medium">Types de dossiers acceptés :</span>
+                                </p>
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                    <span className="px-2 py-1 bg-primary/10 text-primary rounded-md">Entreprise existante</span>
+                                    <span className="px-2 py-1 bg-amber-500/10 text-amber-600 rounded-md">Création d'entreprise</span>
+                                    <span className="px-2 py-1 bg-muted text-muted-foreground rounded-md">Reprise d'activité</span>
                                 </div>
                             </div>
                         </div>
@@ -225,6 +236,7 @@ export default function SmartImportPage() {
                             onCreateDossier={handleCreateDossier}
                             onManualMode={handleManualMode}
                             isCreating={createDossier.isPending}
+                            isDemoMode={isDemoMode}
                         />
 
                         <div className="text-center">

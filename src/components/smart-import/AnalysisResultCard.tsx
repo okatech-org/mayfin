@@ -22,6 +22,7 @@ interface AnalysisResultCardProps {
     onCreateDossier: () => void;
     onManualMode: () => void;
     isCreating?: boolean;
+    isDemoMode?: boolean;
 }
 
 function ScoreGauge({ score, size = 120 }: { score: number; size?: number }) {
@@ -129,13 +130,22 @@ function formatCurrency(value?: number): string {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 }
 
-export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCreating }: AnalysisResultCardProps) {
+export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCreating, isDemoMode }: AnalysisResultCardProps) {
     const { data, score, recommandation, seuilAccordable } = result;
 
     if (!data || !score) return null;
 
     return (
         <div className="rounded-xl border bg-card overflow-hidden">
+            {/* Demo mode indicator */}
+            {isDemoMode && (
+                <div className="bg-amber-500/10 border-b border-amber-500/30 px-6 py-2">
+                    <p className="text-sm text-amber-600 font-medium text-center">
+                        ⚡ Mode démonstration — Les données affichées sont simulées
+                    </p>
+                </div>
+            )}
+
             {/* Header with score */}
             <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-6">
                 <div className="flex flex-col md:flex-row items-center gap-6">
