@@ -1,9 +1,12 @@
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { DossiersList } from '@/components/dossiers/DossiersList';
-import { mockDossiers } from '@/data/mockData';
+import { useDossiers } from '@/hooks/useDossiers';
+import { Loader2 } from 'lucide-react';
 
 export default function DossiersPage() {
+  const { data: dossiers, isLoading, error } = useDossiers();
+
   return (
     <Layout>
       <Header 
@@ -12,7 +15,17 @@ export default function DossiersPage() {
       />
       
       <div className="p-6">
-        <DossiersList dossiers={mockDossiers} />
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-12 text-destructive">
+            Erreur lors du chargement des dossiers
+          </div>
+        ) : (
+          <DossiersList dossiers={dossiers || []} />
+        )}
       </div>
     </Layout>
   );
