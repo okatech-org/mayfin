@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import { logAuditAction } from './useAuditLogs';
 
 export interface DossierRow {
   id: string;
@@ -166,6 +167,18 @@ export function useCreateDossier() {
         .single();
 
       if (error) throw error;
+      
+      // Log audit action
+      await logAuditAction(
+        user!.id,
+        'CREATE',
+        'dossier',
+        data.id,
+        data.id,
+        undefined,
+        { raison_sociale: data.raison_sociale, siren: data.siren, montant_demande: data.montant_demande }
+      );
+      
       return data;
     },
     onSuccess: () => {
@@ -181,9 +194,17 @@ export function useCreateDossier() {
 
 export function useUpdateDossier() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, ...dossier }: Partial<DossierRow> & { id: string }) => {
+      // Get old values for audit
+      const { data: oldData } = await supabase
+        .from('dossiers')
+        .select('*')
+        .eq('id', id)
+        .single();
+
       const { data, error } = await supabase
         .from('dossiers')
         .update(dossier)
@@ -192,6 +213,30 @@ export function useUpdateDossier() {
         .single();
 
       if (error) throw error;
+
+      // Log audit action with changes
+      if (user && oldData) {
+        const changedFields: Record<string, unknown> = {};
+        const oldFields: Record<string, unknown> = {};
+        Object.keys(dossier).forEach((key) => {
+          if (oldData[key as keyof typeof oldData] !== dossier[key as keyof typeof dossier]) {
+            oldFields[key] = oldData[key as keyof typeof oldData];
+            changedFields[key] = dossier[key as keyof typeof dossier];
+          }
+        });
+        if (Object.keys(changedFields).length > 0) {
+          await logAuditAction(
+            user.id,
+            'UPDATE',
+            'dossier',
+            id,
+            id,
+            oldFields,
+            changedFields
+          );
+        }
+      }
+
       return data;
     },
     onSuccess: (data) => {
@@ -208,6 +253,7 @@ export function useUpdateDossier() {
 
 export function useUpdateDossierStatus() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, status, score_global, recommandation }: { 
@@ -216,6 +262,13 @@ export function useUpdateDossierStatus() {
       score_global?: number;
       recommandation?: string;
     }) => {
+      // Get old values for audit
+      const { data: oldData } = await supabase
+        .from('dossiers')
+        .select('status, score_global, recommandation')
+        .eq('id', id)
+        .single();
+
       const updateData: Record<string, unknown> = { status };
       if (score_global !== undefined) updateData.score_global = score_global;
       if (recommandation !== undefined) updateData.recommandation = recommandation;
@@ -228,6 +281,20 @@ export function useUpdateDossierStatus() {
         .single();
 
       if (error) throw error;
+
+      // Log audit action
+      if (user && oldData) {
+        await logAuditAction(
+          user.id,
+          'UPDATE_STATUS',
+          'dossier',
+          id,
+          id,
+          { status: oldData.status, score_global: oldData.score_global },
+          updateData
+        );
+      }
+
       return data;
     },
     onSuccess: (data) => {
@@ -243,9 +310,18 @@ export function useUpdateDossierStatus() {
 
 export function useSaveFinancieres() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (data: Omit<DonneesFinancieresRow, 'id' | 'created_at'>) => {
+      // Check if exists for audit
+      const { data: existingData } = await supabase
+        .from('donnees_financieres')
+        .select('*')
+        .eq('dossier_id', data.dossier_id)
+        .eq('annee_exercice', data.annee_exercice)
+        .maybeSingle();
+
       const { data: result, error } = await supabase
         .from('donnees_financieres')
         .upsert(data, { onConflict: 'dossier_id,annee_exercice' })
@@ -253,6 +329,30 @@ export function useSaveFinancieres() {
         .single();
 
       if (error) throw error;
+
+      // Log audit action
+      if (user) {
+        const action = existingData ? 'UPDATE' : 'CREATE';
+        await logAuditAction(
+          user.id,
+          action,
+          'donnees_financieres',
+          data.dossier_id,
+          result.id,
+          existingData ? { 
+            chiffre_affaires: existingData.chiffre_affaires,
+            resultat_net: existingData.resultat_net,
+            ebitda: existingData.ebitda
+          } : undefined,
+          { 
+            annee_exercice: data.annee_exercice,
+            chiffre_affaires: data.chiffre_affaires,
+            resultat_net: data.resultat_net,
+            ebitda: data.ebitda
+          }
+        );
+      }
+
       return result;
     },
     onSuccess: (data) => {

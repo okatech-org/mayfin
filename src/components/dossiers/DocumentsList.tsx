@@ -33,6 +33,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useAuth } from '@/hooks/useAuth';
+import { logAuditAction } from '@/hooks/useAuditLogs';
 
 interface DocumentsListProps {
   dossierId: string;
@@ -87,6 +89,7 @@ export function DocumentsList({ dossierId, documents }: DocumentsListProps) {
   const [selectedYear, setSelectedYear] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
@@ -105,7 +108,7 @@ export function DocumentsList({ dossierId, documents }: DocumentsListProps) {
       if (uploadError) throw uploadError;
 
       // Save metadata to database
-      const { error: dbError } = await supabase
+      const { data: docData, error: dbError } = await supabase
         .from('documents')
         .insert({
           dossier_id: dossierId,
@@ -115,9 +118,26 @@ export function DocumentsList({ dossierId, documents }: DocumentsListProps) {
           taille_octets: file.size,
           mime_type: file.type,
           annee_exercice: year || null,
-        });
+        })
+        .select()
+        .single();
 
       if (dbError) throw dbError;
+
+      // Log audit action
+      if (user) {
+        await logAuditAction(
+          user.id,
+          'UPLOAD',
+          'document',
+          dossierId,
+          docData.id,
+          undefined,
+          { type_document: type, nom_fichier: file.name, taille_octets: file.size }
+        );
+      }
+
+      return docData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents', dossierId] });
@@ -148,6 +168,19 @@ export function DocumentsList({ dossierId, documents }: DocumentsListProps) {
         .eq('id', doc.id);
 
       if (dbError) throw dbError;
+
+      // Log audit action
+      if (user) {
+        await logAuditAction(
+          user.id,
+          'DELETE',
+          'document',
+          dossierId,
+          doc.id,
+          { type_document: doc.type_document, nom_fichier: doc.nom_fichier },
+          undefined
+        );
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents', dossierId] });
