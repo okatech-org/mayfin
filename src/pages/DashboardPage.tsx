@@ -7,6 +7,9 @@ import { FinancementChart } from '@/components/dashboard/FinancementChart';
 import { MonthlyChart } from '@/components/dashboard/MonthlyChart';
 import { StatusChart } from '@/components/dashboard/StatusChart';
 import { SectorScoreChart } from '@/components/dashboard/SectorScoreChart';
+import { ScoreEvolutionChart } from '@/components/dashboard/ScoreEvolutionChart';
+import { ScoreDistributionChart } from '@/components/dashboard/ScoreDistributionChart';
+import { RecentScoreTrends } from '@/components/dashboard/RecentScoreTrends';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -90,6 +93,17 @@ export default function DashboardPage() {
           <StatusChart />
           <SectorScoreChart />
         </div>
+
+        {/* Score Evolution Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <ScoreEvolutionChart />
+          </div>
+          <ScoreDistributionChart />
+        </div>
+
+        {/* Recent Trends */}
+        <RecentScoreTrends />
 
         {/* Recent Dossiers */}
         <RecentDossiers />
