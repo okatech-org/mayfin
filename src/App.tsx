@@ -11,6 +11,7 @@ import DossierDetailPage from "./pages/DossierDetailPage";
 import NewDossierPage from "./pages/NewDossierPage";
 import SmartImportPage from "./pages/SmartImportPage";
 import LoginPage from "./pages/LoginPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ProfilPage from "./pages/ProfilPage";
 import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
@@ -30,6 +31,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/dossiers" element={<ProtectedRoute><DossiersPage /></ProtectedRoute>} />
             <Route path="/dossiers/nouveau-ia" element={<ProtectedRoute><SmartImportPage /></ProtectedRoute>} />

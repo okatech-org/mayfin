@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Shield, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,13 +16,19 @@ import {
 } from '@/components/ui/form';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const schema = z.object({
   email: z.string().email('Email invalide'),
   password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
 });
 
+const resetSchema = z.object({
+  email: z.string().email('Email invalide'),
+});
+
 type FormData = z.infer<typeof schema>;
+type ResetFormData = z.infer<typeof resetSchema>;
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -30,12 +36,21 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       email: '',
       password: '',
+    },
+  });
+
+  const resetForm = useForm<ResetFormData>({
+    resolver: zodResolver(resetSchema),
+    defaultValues: {
+      email: '',
     },
   });
 
@@ -54,6 +69,28 @@ export default function LoginPage() {
     
     toast.success(isSignUp ? 'Compte créé avec succès' : 'Connexion réussie');
     navigate('/');
+  };
+
+  const onResetSubmit = async (data: ResetFormData) => {
+    setIsResetting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        toast.error(error.message || 'Erreur lors de l\'envoi');
+        return;
+      }
+
+      toast.success('Email de réinitialisation envoyé ! Vérifiez votre boîte mail.');
+      setShowResetPassword(false);
+      resetForm.reset();
+    } catch (error) {
+      toast.error('Une erreur est survenue');
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
@@ -99,12 +136,68 @@ export default function LoginPage() {
             <h1 className="text-xl font-bold text-foreground">FinDecision</h1>
           </div>
 
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-foreground">Connexion</h2>
-            <p className="text-muted-foreground mt-2">
-              Accédez à votre espace d'analyse de dossiers
-            </p>
-          </div>
+          {showResetPassword ? (
+            <>
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-foreground">Mot de passe oublié</h2>
+                <p className="text-muted-foreground mt-2">
+                  Entrez votre email pour recevoir un lien de réinitialisation
+                </p>
+              </div>
+
+              <Form {...resetForm}>
+                <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-6">
+                  <FormField
+                    control={resetForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email professionnel</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type="email" 
+                            placeholder="prenom.nom@bnpparibas.com" 
+                            className="h-11"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button type="submit" className="w-full h-11" disabled={isResetting}>
+                    {isResetting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Envoi en cours...
+                      </>
+                    ) : (
+                      'Envoyer le lien'
+                    )}
+                  </Button>
+                </form>
+              </Form>
+
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowResetPassword(false)}
+                  className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <ArrowLeft className="h-3 w-3" />
+                  Retour à la connexion
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-foreground">Connexion</h2>
+                <p className="text-muted-foreground mt-2">
+                  Accédez à votre espace d'analyse de dossiers
+                </p>
+              </div>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -172,15 +265,24 @@ export default function LoginPage() {
             </form>
           </Form>
 
-          <div className="text-center mt-4">
-            <button
-              type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-primary hover:underline"
-            >
-              {isSignUp ? 'Déjà un compte ? Se connecter' : 'Pas de compte ? S\'inscrire'}
-            </button>
-          </div>
+              <div className="text-center mt-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetPassword(true)}
+                  className="text-sm text-muted-foreground hover:text-primary hover:underline block w-full"
+                >
+                  Mot de passe oublié ?
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  className="text-sm text-primary hover:underline"
+                >
+                  {isSignUp ? 'Déjà un compte ? Se connecter' : 'Pas de compte ? S\'inscrire'}
+                </button>
+              </div>
+            </>
+          )}
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             Application à usage professionnel uniquement
