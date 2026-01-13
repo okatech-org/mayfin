@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, Mail, Phone, Building2, Save, Calendar, Loader2, Camera } from 'lucide-react';
+import { User, Mail, Phone, Building2, Save, Calendar, Loader2, Camera, Lock, Eye, EyeOff } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, useUpdateProfile, useUploadAvatar } from '@/hooks/useProfile';
 import { ImageCropModal } from '@/components/profile/ImageCropModal';
+import { supabase } from '@/integrations/supabase/client';
 
 const schema = z.object({
   firstName: z.string().min(1, 'Le prénom est requis'),
@@ -32,6 +33,17 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+const passwordSchema = z.object({
+  currentPassword: z.string().min(1, 'Le mot de passe actuel est requis'),
+  newPassword: z.string().min(6, 'Le nouveau mot de passe doit contenir au moins 6 caractères'),
+  confirmPassword: z.string().min(1, 'La confirmation est requise'),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: 'Les mots de passe ne correspondent pas',
+  path: ['confirmPassword'],
+});
+
+type PasswordFormData = z.infer<typeof passwordSchema>;
+
 export default function ProfilPage() {
   const { user } = useAuth();
   const { data: profile, isLoading } = useProfile();
@@ -41,6 +53,10 @@ export default function ProfilPage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -50,6 +66,15 @@ export default function ProfilPage() {
       phone: '',
       poste: '',
       dateOfBirth: '',
+    },
+  });
+
+  const passwordForm = useForm<PasswordFormData>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
     },
   });
 
@@ -144,6 +169,46 @@ export default function ProfilPage() {
     const firstName = form.watch('firstName') || profile?.first_name || '';
     const lastName = form.watch('lastName') || profile?.last_name || '';
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
+  };
+
+  const onPasswordSubmit = async (data: PasswordFormData) => {
+    if (!user?.email) {
+      toast.error('Utilisateur non connecté');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      // First verify current password by attempting to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: data.currentPassword,
+      });
+
+      if (signInError) {
+        toast.error('Le mot de passe actuel est incorrect');
+        setIsChangingPassword(false);
+        return;
+      }
+
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: data.newPassword,
+      });
+
+      if (updateError) {
+        toast.error('Erreur lors du changement de mot de passe');
+        setIsChangingPassword(false);
+        return;
+      }
+
+      toast.success('Mot de passe modifié avec succès');
+      passwordForm.reset();
+    } catch (error) {
+      toast.error('Une erreur est survenue');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   if (isLoading) {
@@ -317,6 +382,129 @@ export default function ProfilPage() {
                       <>
                         <Save className="h-4 w-4 mr-2" />
                         Enregistrer
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+
+        {/* Password Change Card */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5" />
+              Changer le mot de passe
+            </CardTitle>
+            <CardDescription>
+              Modifiez votre mot de passe de connexion
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...passwordForm}>
+              <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+                <FormField
+                  control={passwordForm.control}
+                  name="currentPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Mot de passe actuel</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            {...field}
+                            type={showCurrentPassword ? 'text' : 'password'}
+                            className="pl-10 pr-10"
+                            placeholder="••••••••"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={passwordForm.control}
+                    name="newPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nouveau mot de passe</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              {...field}
+                              type={showNewPassword ? 'text' : 'password'}
+                              className="pl-10 pr-10"
+                              placeholder="••••••••"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                              {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={passwordForm.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirmer le mot de passe</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              {...field}
+                              type={showConfirmPassword ? 'text' : 'password'}
+                              className="pl-10 pr-10"
+                              placeholder="••••••••"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={isChangingPassword}>
+                    {isChangingPassword ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Modification...
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="h-4 w-4 mr-2" />
+                        Changer le mot de passe
                       </>
                     )}
                   </Button>
