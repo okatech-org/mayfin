@@ -11,6 +11,7 @@ export interface Profile {
   phone: string | null;
   date_of_birth: string | null;
   position: string | null;
+  avatar_url: string | null;
   role: string | null;
   created_at: string;
   updated_at: string;
@@ -23,6 +24,7 @@ export interface ProfileUpdateData {
   phone?: string;
   date_of_birth?: string;
   position?: string;
+  avatar_url?: string;
 }
 
 // Fetch current user's profile
@@ -41,7 +43,6 @@ export function useProfile() {
         .maybeSingle();
 
       if (error) throw error;
-      // Cast to Profile - date_of_birth and position may not exist yet in DB
       return data as Profile | null;
     },
     enabled: !!user?.id,
@@ -88,6 +89,67 @@ export function useUpdateProfile() {
         if (error) throw error;
       }
       return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
+    },
+  });
+}
+
+// Upload avatar
+export function useUploadAvatar() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      if (!user?.id) throw new Error('User not authenticated');
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/avatar.${fileExt}`;
+
+      // Upload file to storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      // Update profile with avatar URL
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ 
+            avatar_url: publicUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: user.id,
+            email: user.email,
+            avatar_url: publicUrl,
+          });
+
+        if (error) throw error;
+      }
+
+      return publicUrl;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
