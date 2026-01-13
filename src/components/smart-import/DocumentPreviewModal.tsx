@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Download, FileText, Building2, User, TrendingUp, Globe, Lightbulb, ChevronDown, ChevronUp, RefreshCw, FileType, Settings2, Save, History, Trash2, AlertTriangle, CheckCircle2, Target, ShoppingCart, Car, Briefcase, ArrowRightLeft, GripVertical, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -270,6 +271,21 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
         setSections(prev => prev.map(s => s.id === id ? { ...s, enabled } : s));
     };
 
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
+    const handleCloseAttempt = (open: boolean) => {
+        if (!open && hasUnsavedChanges) {
+            setShowCloseConfirm(true);
+        } else if (!open) {
+            onClose();
+        }
+    };
+
+    const handleConfirmClose = () => {
+        setShowCloseConfirm(false);
+        onClose();
+    };
+
     const enabledSections = sections.filter(s => s.enabled);
     const scoreColor = score.global >= 70 ? 'text-success' : score.global >= 45 ? 'text-warning' : 'text-destructive';
     const recoBg = recommandation === 'FAVORABLE' ? 'bg-success/20 text-success' : recommandation === 'DEFAVORABLE' ? 'bg-destructive/20 text-destructive' : 'bg-warning/20 text-warning';
@@ -277,7 +293,8 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
     const isSectionEnabled = (id: string) => sections.find(s => s.id === id)?.enabled ?? false;
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <>
+        <Dialog open={isOpen} onOpenChange={handleCloseAttempt}>
             <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
                 <DialogHeader className="p-6 pb-4 border-b bg-gradient-to-r from-primary/10 to-primary/5">
                     <div className="flex items-center justify-between">
@@ -953,5 +970,24 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
                 </div>
             </DialogContent>
         </Dialog>
+
+        {/* Confirmation dialog for unsaved changes */}
+        <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Modifications non sauvegardées</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Vous avez des modifications de préférences non sauvegardées. Voulez-vous vraiment fermer sans sauvegarder ?
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirmClose} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Fermer sans sauvegarder
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+        </>
     );
 }
