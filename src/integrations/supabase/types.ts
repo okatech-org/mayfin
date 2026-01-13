@@ -415,6 +415,87 @@ export type Database = {
         }
         Relationships: []
       }
+      report_section_preferences: {
+        Row: {
+          created_at: string
+          id: string
+          sections_config: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sections_config?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sections_config?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reports_history: {
+        Row: {
+          analyse_id: string | null
+          dossier_id: string | null
+          file_name: string
+          generated_at: string
+          id: string
+          raison_sociale: string | null
+          report_type: string
+          score_global: number | null
+          sections_config: Json
+          siren: string | null
+          user_id: string
+        }
+        Insert: {
+          analyse_id?: string | null
+          dossier_id?: string | null
+          file_name: string
+          generated_at?: string
+          id?: string
+          raison_sociale?: string | null
+          report_type: string
+          score_global?: number | null
+          sections_config?: Json
+          siren?: string | null
+          user_id: string
+        }
+        Update: {
+          analyse_id?: string | null
+          dossier_id?: string | null
+          file_name?: string
+          generated_at?: string
+          id?: string
+          raison_sociale?: string | null
+          report_type?: string
+          score_global?: number | null
+          sections_config?: Json
+          siren?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_history_analyse_id_fkey"
+            columns: ["analyse_id"]
+            isOneToOne: false
+            referencedRelation: "analyse_history"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_history_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scoring_history: {
         Row: {
           calculated_at: string

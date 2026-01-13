@@ -1,18 +1,15 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import type { RapportAnalyseRow } from '@/hooks/useRapportAnalyse';
 import type { DossierRow } from '@/hooks/useDossiers';
 import { SECTIONS, QUESTIONS, DECISION_LABELS, SYNTHESE_LABELS, CONDITIONS_PARTICULIERES_OPTIONS } from '@/data/questionnaire-structure';
 import type { Question } from '@/types/rapport-analyse.types';
 import type { AnalysisResult, AnalyseSectorielle, SyntheseNarrative } from '@/hooks/useDocumentAnalysis';
 
-// Extend jsPDF type for autotable
-declare module 'jspdf' {
-    interface jsPDF {
-        autoTable: (options: unknown) => jsPDF;
-        lastAutoTable: { finalY: number };
-    }
-}
+// Helper to get final Y position after autoTable
+const getAutoTableFinalY = (doc: jsPDF): number => {
+    return (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 0;
+};
 
 /**
  * Generate PDF for a completed Bank Analysis Report
@@ -220,7 +217,7 @@ export async function generateRapportPDF(
             const tableData = value as Record<string, unknown>[];
             const columns = Object.keys(tableData[0] || {});
 
-            doc.autoTable({
+            autoTable(doc, {
                 startY: y,
                 head: [columns.map(c => c.replace(/_/g, ' '))],
                 body: tableData.map(row => columns.map(c => String(row[c] ?? '-'))),
@@ -229,7 +226,7 @@ export async function generateRapportPDF(
                 headStyles: { fillColor: [51, 102, 153] }
             });
 
-            y = doc.lastAutoTable.finalY + 5;
+            y = getAutoTableFinalY(doc) + 5;
         }
 
         // Process sub-questions
@@ -480,7 +477,7 @@ export function generateSmartAnalysisPDF(
             ['Activité', `${score.details.activite}/100`, '20%', `${Math.round(score.details.activite * 0.2)}`],
         ];
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: y,
             head: [scoreData[0]],
             body: scoreData.slice(1),
@@ -489,7 +486,7 @@ export function generateSmartAnalysisPDF(
             headStyles: { fillColor: [51, 102, 153], textColor: 255 },
             alternateRowStyles: { fillColor: [248, 250, 252] },
         });
-        y = doc.lastAutoTable.finalY + 10;
+        y = getAutoTableFinalY(doc) + 10;
     }
 
     // Score justifications
@@ -534,7 +531,7 @@ export function generateSmartAnalysisPDF(
             formatCurrency(a.tresorerie),
         ]);
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: y,
             head: [financeHeaders],
             body: financeRows,
@@ -543,7 +540,7 @@ export function generateSmartAnalysisPDF(
             headStyles: { fillColor: [51, 102, 153], textColor: 255 },
             alternateRowStyles: { fillColor: [248, 250, 252] },
         });
-        y = doc.lastAutoTable.finalY + 10;
+        y = getAutoTableFinalY(doc) + 10;
     }
 
     // Funding request

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Download, FileText, Building2, User, TrendingUp, Globe, Lightbulb, Target, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, RefreshCw, FileType, Settings2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Download, FileText, Building2, User, TrendingUp, Globe, Lightbulb, ChevronDown, ChevronUp, RefreshCw, FileType, Settings2, Save, History, Trash2, AlertTriangle, CheckCircle2, Target } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,11 +8,16 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import type { AnalysisResult } from '@/hooks/useDocumentAnalysis';
 import { generateSmartAnalysisPDF } from '@/lib/rapport-pdf-generator';
 import { generateSmartAnalysisWord } from '@/lib/rapport-word-generator';
+import { useReportPreferences } from '@/hooks/useReportPreferences';
+import { useReportsHistory, ReportHistoryEntry } from '@/hooks/useReportsHistory';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export interface SectionConfig {
     id: string;
@@ -26,6 +31,8 @@ interface DocumentPreviewModalProps {
     isOpen: boolean;
     onClose: () => void;
     result: AnalysisResult;
+    analyseId?: string;
+    dossierId?: string;
     onRefreshSectorAnalysis?: () => void;
     isRefreshingSector?: boolean;
 }
@@ -108,7 +115,7 @@ function formatCurrency(value?: number): string {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 }
 
-export function DocumentPreviewModal({ isOpen, onClose, result, onRefreshSectorAnalysis, isRefreshingSector }: DocumentPreviewModalProps) {
+export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossierId, onRefreshSectorAnalysis, isRefreshingSector }: DocumentPreviewModalProps) {
     const [isDownloading, setIsDownloading] = useState(false);
     const [isDownloadingWord, setIsDownloadingWord] = useState(false);
     const [sections, setSections] = useState<SectionConfig[]>(DEFAULT_SECTIONS);
@@ -120,23 +127,58 @@ export function DocumentPreviewModal({ isOpen, onClose, result, onRefreshSectorA
         return initial;
     });
     const [showSettings, setShowSettings] = useState(false);
+    const [activeTab, setActiveTab] = useState<'preview' | 'history'>('preview');
+    
+    const { savedSections, savePreferences, isSaving, isLoading: isLoadingPrefs } = useReportPreferences();
+    const { reports, createReportEntry, deleteReport, isLoading: isLoadingHistory } = useReportsHistory();
     
     const { data, score, recommandation, seuilAccordable, analyseSectorielle, syntheseNarrative, modelsUsed } = result;
 
+    // Load saved preferences when available
+    useEffect(() => {
+        if (savedSections && savedSections.length > 0 && isOpen) {
+            setSections(prev => prev.map(section => {
+                const saved = savedSections.find(s => s.id === section.id);
+                return saved ? { ...section, enabled: saved.enabled } : section;
+            }));
+        }
+    }, [savedSections, isOpen]);
+
     if (!data || !score) return null;
 
-    const handleDownloadPDF = () => {
+    const generateFileName = (type: 'pdf' | 'word') => {
+        const ext = type === 'pdf' ? 'pdf' : 'docx';
+        const siren = data.entreprise.siren || 'entreprise';
+        const date = format(new Date(), 'yyyy-MM-dd');
+        return `analyse_${siren}_${date}.${ext}`;
+    };
+
+    const handleDownloadPDF = async () => {
         if (!result.data) {
             toast.error('Aucune donnée disponible pour générer le PDF');
             return;
         }
         setIsDownloading(true);
         try {
+            const fileName = generateFileName('pdf');
             generateSmartAnalysisPDF(result);
+            
+            // Track in history
+            await createReportEntry({
+                dossier_id: dossierId,
+                analyse_id: analyseId,
+                report_type: 'pdf',
+                file_name: fileName,
+                sections_config: sections,
+                raison_sociale: data.entreprise.raisonSociale,
+                siren: data.entreprise.siren,
+                score_global: score.global
+            });
+            
             toast.success('PDF téléchargé avec succès');
         } catch (error) {
             console.error('Erreur génération PDF:', error);
-            toast.error('Erreur lors de la génération du PDF');
+            toast.error(`Erreur lors de la génération du PDF: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
         } finally {
             setIsDownloading(false);
         }
@@ -149,7 +191,21 @@ export function DocumentPreviewModal({ isOpen, onClose, result, onRefreshSectorA
         }
         setIsDownloadingWord(true);
         try {
+            const fileName = generateFileName('word');
             await generateSmartAnalysisWord(result);
+            
+            // Track in history
+            await createReportEntry({
+                dossier_id: dossierId,
+                analyse_id: analyseId,
+                report_type: 'word',
+                file_name: fileName,
+                sections_config: sections,
+                raison_sociale: data.entreprise.raisonSociale,
+                siren: data.entreprise.siren,
+                score_global: score.global
+            });
+            
             toast.success('Document Word téléchargé avec succès');
         } catch (error) {
             console.error('Erreur génération Word:', error);
@@ -157,6 +213,10 @@ export function DocumentPreviewModal({ isOpen, onClose, result, onRefreshSectorA
         } finally {
             setIsDownloadingWord(false);
         }
+    };
+
+    const handleSavePreferences = () => {
+        savePreferences(sections);
     };
 
     const toggleSection = (id: string) => {
@@ -216,7 +276,18 @@ export function DocumentPreviewModal({ isOpen, onClose, result, onRefreshSectorA
                 <Collapsible open={showSettings} onOpenChange={setShowSettings}>
                     <CollapsibleContent>
                         <div className="px-6 py-4 bg-muted/30 border-b">
-                            <p className="text-sm font-medium mb-3">Sections à inclure dans le rapport :</p>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-sm font-medium">Sections à inclure dans le rapport :</p>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleSavePreferences}
+                                    disabled={isSaving}
+                                >
+                                    <Save className="h-4 w-4 mr-1" />
+                                    {isSaving ? 'Sauvegarde...' : 'Sauvegarder préférences'}
+                                </Button>
+                            </div>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                 {sections.map(section => (
                                     <div key={section.id} className="flex items-center gap-2">
@@ -233,12 +304,27 @@ export function DocumentPreviewModal({ isOpen, onClose, result, onRefreshSectorA
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
                                 {enabledSections.length} section(s) sélectionnée(s)
+                                {savedSections && ' • Préférences chargées'}
                             </p>
                         </div>
                     </CollapsibleContent>
                 </Collapsible>
 
-                <ScrollArea className="flex-1 max-h-[calc(90vh-250px)]">
+                {/* Tabs for Preview/History */}
+                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'preview' | 'history')} className="flex-1 flex flex-col">
+                    <TabsList className="mx-6 mt-4 grid w-auto grid-cols-2 max-w-xs">
+                        <TabsTrigger value="preview">
+                            <FileText className="h-4 w-4 mr-2" />
+                            Aperçu
+                        </TabsTrigger>
+                        <TabsTrigger value="history">
+                            <History className="h-4 w-4 mr-2" />
+                            Historique ({reports.length})
+                        </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="preview" className="flex-1 mt-0">
+                        <ScrollArea className="max-h-[calc(90vh-350px)]">
                     <div className="p-6 space-y-4">
                         {/* Enterprise Info */}
                         {isSectionEnabled('entreprise') && (
@@ -556,7 +642,72 @@ export function DocumentPreviewModal({ isOpen, onClose, result, onRefreshSectorA
                             </PreviewSection>
                         )}
                     </div>
-                </ScrollArea>
+                        </ScrollArea>
+                    </TabsContent>
+
+                    <TabsContent value="history" className="flex-1 mt-0">
+                        <ScrollArea className="max-h-[calc(90vh-350px)]">
+                            <div className="p-6 space-y-4">
+                                {isLoadingHistory ? (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        Chargement de l'historique...
+                                    </div>
+                                ) : reports.length === 0 ? (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                        <p className="font-medium">Aucun rapport généré</p>
+                                        <p className="text-sm">Les rapports téléchargés apparaîtront ici</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {reports.map((report) => (
+                                            <div 
+                                                key={report.id} 
+                                                className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {report.report_type === 'pdf' ? (
+                                                        <FileText className="h-8 w-8 text-destructive" />
+                                                    ) : (
+                                                        <FileType className="h-8 w-8 text-primary" />
+                                                    )}
+                                                    <div>
+                                                        <p className="font-medium text-sm">{report.file_name}</p>
+                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                            <span>{report.raison_sociale || 'Entreprise'}</span>
+                                                            {report.score_global && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <Badge variant="outline" className={cn('text-xs', 
+                                                                        report.score_global >= 70 ? 'text-success' : 
+                                                                        report.score_global >= 45 ? 'text-warning' : 'text-destructive'
+                                                                    )}>
+                                                                        Score: {report.score_global}
+                                                                    </Badge>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {format(new Date(report.generated_at), "dd MMM yyyy 'à' HH:mm", { locale: fr })}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => deleteReport(report.id)}
+                                                    className="text-muted-foreground hover:text-destructive"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </ScrollArea>
+                    </TabsContent>
+                </Tabs>
 
                 {/* Footer */}
                 <div className="p-4 border-t bg-muted/30 flex items-center justify-between gap-4">
