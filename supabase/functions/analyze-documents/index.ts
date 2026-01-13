@@ -1264,7 +1264,16 @@ serve(async (req) => {
       } else if (value instanceof File) {
         console.log(`📎 Fichier reçu: ${value.name} (${value.type}, ${(value.size / 1024).toFixed(1)} Ko)`);
         const buffer = await value.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        const uint8Array = new Uint8Array(buffer);
+        
+        // Convert to base64 in chunks to avoid stack overflow for large files
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < uint8Array.length; i += chunkSize) {
+          const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+          binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+        }
+        const base64 = btoa(binary);
         files.push({ name: value.name, type: value.type, data: base64 });
       }
     }
