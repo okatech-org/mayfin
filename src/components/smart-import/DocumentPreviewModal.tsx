@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, FileText, Building2, User, TrendingUp, Globe, Lightbulb, ChevronDown, ChevronUp, RefreshCw, FileType, Settings2, Save, History, Trash2, AlertTriangle, CheckCircle2, Target, ShoppingCart, Car, Briefcase, ArrowRightLeft } from 'lucide-react';
+import { Download, FileText, Building2, User, TrendingUp, Globe, Lightbulb, ChevronDown, ChevronUp, RefreshCw, FileType, Settings2, Save, History, Trash2, AlertTriangle, CheckCircle2, Target, ShoppingCart, Car, Briefcase, ArrowRightLeft, GripVertical } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ import { generateSmartAnalysisPDF } from '@/lib/rapport-pdf-generator';
 import { generateSmartAnalysisWord } from '@/lib/rapport-word-generator';
 import { useReportPreferences } from '@/hooks/useReportPreferences';
 import { useReportsHistory, ReportHistoryEntry } from '@/hooks/useReportsHistory';
+import { SortableSectionsPanel } from './SortableSectionsPanel';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -273,12 +274,15 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
                     )}
                 </DialogHeader>
 
-                {/* Settings panel */}
+                {/* Settings panel with drag & drop */}
                 <Collapsible open={showSettings} onOpenChange={setShowSettings}>
                     <CollapsibleContent>
                         <div className="px-6 py-4 bg-muted/30 border-b">
-                            <div className="flex items-center justify-between mb-3">
-                                <p className="text-sm font-medium">Sections à inclure dans le rapport :</p>
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <p className="text-sm font-medium">Personnaliser le rapport</p>
+                                    <p className="text-xs text-muted-foreground">Activez/désactivez et réorganisez les sections</p>
+                                </div>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -286,24 +290,17 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
                                     disabled={isSaving}
                                 >
                                     <Save className="h-4 w-4 mr-1" />
-                                    {isSaving ? 'Sauvegarde...' : 'Sauvegarder préférences'}
+                                    {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
                                 </Button>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                {sections.map(section => (
-                                    <div key={section.id} className="flex items-center gap-2">
-                                        <Checkbox
-                                            id={`setting-${section.id}`}
-                                            checked={section.enabled}
-                                            onCheckedChange={(checked) => toggleSectionEnabled(section.id, !!checked)}
-                                        />
-                                        <Label htmlFor={`setting-${section.id}`} className="text-sm cursor-pointer">
-                                            {section.label}
-                                        </Label>
-                                    </div>
-                                ))}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-2">
+                            
+                            <SortableSectionsPanel
+                                sections={sections}
+                                onSectionsChange={setSections}
+                                onToggle={toggleSectionEnabled}
+                            />
+                            
+                            <p className="text-xs text-muted-foreground mt-3">
                                 {enabledSections.length} section(s) sélectionnée(s)
                                 {savedSections && ' • Préférences chargées'}
                             </p>
