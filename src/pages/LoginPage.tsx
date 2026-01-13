@@ -17,6 +17,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
 
 const schema = z.object({
   email: z.string().email('Email invalide'),
@@ -247,6 +248,7 @@ export default function LoginPage() {
                         </button>
                       </div>
                     </FormControl>
+                    {isSignUp && <PasswordStrengthIndicator password={field.value} />}
                     <FormMessage />
                   </FormItem>
                 )}

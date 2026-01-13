@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/form';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
 
 const schema = z.object({
   password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
@@ -190,6 +191,7 @@ export default function ResetPasswordPage() {
                             </button>
                           </div>
                         </FormControl>
+                        <PasswordStrengthIndicator password={field.value} />
                         <FormMessage />
                       </FormItem>
                     )}
