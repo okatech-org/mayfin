@@ -16,16 +16,20 @@ import {
     Lightbulb,
     Shield,
     Target,
-    BookOpen
+    BookOpen,
+    Eye,
+    RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Separator } from '@/components/ui/separator';
-import type { AnalysisResult } from '@/hooks/useDocumentAnalysis';
+import type { AnalysisResult, AnalyseSectorielle } from '@/hooks/useDocumentAnalysis';
 import { generateSmartAnalysisPDF } from '@/lib/rapport-pdf-generator';
 import { toast } from 'sonner';
+import { PDFPreviewModal } from './PDFPreviewModal';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AnalysisResultCardProps {
     result: AnalysisResult;
@@ -158,6 +162,9 @@ function formatCurrency(value?: number): string {
 export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCreating, isDemoMode }: AnalysisResultCardProps) {
     const { data, score, recommandation, seuilAccordable, modelsUsed, analyseSectorielle, syntheseNarrative } = result;
     const [isDownloading, setIsDownloading] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
+    const [isRefreshingSector, setIsRefreshingSector] = useState(false);
+    const [sectorData, setSectorData] = useState<AnalyseSectorielle | undefined>(analyseSectorielle);
 
     if (!data || !score) return null;
 
@@ -172,6 +179,45 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
         } finally {
             setIsDownloading(false);
         }
+    };
+
+    const handleRefreshSectorAnalysis = async () => {
+        if (!data.entreprise.secteurActivite) {
+            toast.error('Secteur d\'activité non disponible');
+            return;
+        }
+
+        setIsRefreshingSector(true);
+        try {
+            const { data: response, error } = await supabase.functions.invoke('sector-analysis', {
+                body: {
+                    secteur: data.entreprise.secteurActivite,
+                    codeNaf: data.entreprise.codeNaf,
+                    localisation: data.entreprise.adresseSiege,
+                    raisonSociale: data.entreprise.raisonSociale
+                }
+            });
+
+            if (error) throw error;
+
+            if (response?.success && response?.analyseSectorielle) {
+                setSectorData(response.analyseSectorielle);
+                toast.success('Analyse sectorielle actualisée avec Perplexity');
+            } else {
+                throw new Error(response?.error || 'Erreur lors de l\'analyse');
+            }
+        } catch (error) {
+            console.error('Erreur analyse sectorielle:', error);
+            toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'actualisation');
+        } finally {
+            setIsRefreshingSector(false);
+        }
+    };
+
+    // Create updated result with refreshed sector data
+    const updatedResult: AnalysisResult = {
+        ...result,
+        analyseSectorielle: sectorData
     };
 
     return (
@@ -361,87 +407,114 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
             )}
 
             {/* Sector analysis section */}
-            {analyseSectorielle && (
+            {(sectorData || data.entreprise.secteurActivite) && (
                 <div className="px-6 py-4 border-b">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Globe className="h-5 w-5 text-blue-500" />
-                        <span className="font-semibold text-foreground">Analyse sectorielle</span>
-                        <Badge variant="outline" className="text-xs">Perplexity</Badge>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <Globe className="h-5 w-5 text-blue-500" />
+                            <span className="font-semibold text-foreground">Analyse sectorielle</span>
+                            <Badge variant="outline" className="text-xs">Perplexity</Badge>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleRefreshSectorAnalysis}
+                            disabled={isRefreshingSector}
+                        >
+                            <RefreshCw className={cn('h-4 w-4 mr-1', isRefreshingSector && 'animate-spin')} />
+                            {isRefreshingSector ? 'Actualisation...' : 'Actualiser'}
+                        </Button>
                     </div>
 
-                    {analyseSectorielle.contexteMarche && (
-                        <div className="mb-4">
-                            <p className="text-sm text-muted-foreground mb-2 font-medium">Contexte de marché</p>
-                            <p className="text-sm text-foreground bg-muted/30 p-3 rounded-lg">
-                                {analyseSectorielle.contexteMarche}
-                            </p>
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {analyseSectorielle.risquesSecteur && analyseSectorielle.risquesSecteur.length > 0 && (
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2">
-                                    <Shield className="h-4 w-4 text-destructive" />
-                                    <span className="text-sm font-medium text-destructive">Risques sectoriels</span>
+                    {sectorData ? (
+                        <>
+                            {sectorData.contexteMarche && (
+                                <div className="mb-4">
+                                    <p className="text-sm text-muted-foreground mb-2 font-medium">Contexte de marché</p>
+                                    <p className="text-sm text-foreground bg-muted/30 p-3 rounded-lg">
+                                        {sectorData.contexteMarche}
+                                    </p>
                                 </div>
-                                <ul className="space-y-1">
-                                    {analyseSectorielle.risquesSecteur.map((risque, i) => (
-                                        <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                                            <span className="text-destructive mt-1">⚠</span>
-                                            <span>{risque}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
+                            )}
 
-                        {analyseSectorielle.opportunites && analyseSectorielle.opportunites.length > 0 && (
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2">
-                                    <TrendingUp className="h-4 w-4 text-success" />
-                                    <span className="text-sm font-medium text-success">Opportunités</span>
-                                </div>
-                                <ul className="space-y-1">
-                                    {analyseSectorielle.opportunites.map((opp, i) => (
-                                        <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                                            <span className="text-success mt-1">✓</span>
-                                            <span>{opp}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {sectorData.risquesSecteur && sectorData.risquesSecteur.length > 0 && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <Shield className="h-4 w-4 text-destructive" />
+                                            <span className="text-sm font-medium text-destructive">Risques sectoriels</span>
+                                        </div>
+                                        <ul className="space-y-1">
+                                            {sectorData.risquesSecteur.map((risque, i) => (
+                                                <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                                    <span className="text-destructive mt-1">⚠</span>
+                                                    <span>{risque}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
 
-                    {analyseSectorielle.benchmarkConcurrents && (
-                        <div className="mt-4 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-                            <p className="text-sm font-medium text-blue-600 mb-1">Benchmark concurrentiel</p>
-                            <p className="text-sm text-foreground">{analyseSectorielle.benchmarkConcurrents}</p>
-                        </div>
-                    )}
-
-                    {analyseSectorielle.sources && analyseSectorielle.sources.length > 0 && (
-                        <div className="mt-3">
-                            <p className="text-xs text-muted-foreground mb-1">Sources ({analyseSectorielle.sources.length})</p>
-                            <div className="flex flex-wrap gap-1">
-                                {analyseSectorielle.sources.slice(0, 3).map((src, i) => (
-                                    <a 
-                                        key={i} 
-                                        href={src} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-primary hover:underline truncate max-w-[200px]"
-                                    >
-                                        {new URL(src).hostname}
-                                    </a>
-                                ))}
-                                {analyseSectorielle.sources.length > 3 && (
-                                    <span className="text-xs text-muted-foreground">
-                                        +{analyseSectorielle.sources.length - 3} autres
-                                    </span>
+                                {sectorData.opportunites && sectorData.opportunites.length > 0 && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <TrendingUp className="h-4 w-4 text-success" />
+                                            <span className="text-sm font-medium text-success">Opportunités</span>
+                                        </div>
+                                        <ul className="space-y-1">
+                                            {sectorData.opportunites.map((opp, i) => (
+                                                <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                                    <span className="text-success mt-1">✓</span>
+                                                    <span>{opp}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
                                 )}
                             </div>
+
+                            {sectorData.benchmarkConcurrents && (
+                                <div className="mt-4 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                                    <p className="text-sm font-medium text-blue-600 mb-1">Benchmark concurrentiel</p>
+                                    <p className="text-sm text-foreground">{sectorData.benchmarkConcurrents}</p>
+                                </div>
+                            )}
+
+                            {sectorData.sources && sectorData.sources.length > 0 && (
+                                <div className="mt-3">
+                                    <p className="text-xs text-muted-foreground mb-1">Sources ({sectorData.sources.length})</p>
+                                    <div className="flex flex-wrap gap-1">
+                                        {sectorData.sources.slice(0, 3).map((src, i) => {
+                                            try {
+                                                return (
+                                                    <a 
+                                                        key={i} 
+                                                        href={src} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="text-xs text-primary hover:underline truncate max-w-[200px]"
+                                                    >
+                                                        {new URL(src).hostname}
+                                                    </a>
+                                                );
+                                            } catch {
+                                                return null;
+                                            }
+                                        })}
+                                        {sectorData.sources.length > 3 && (
+                                            <span className="text-xs text-muted-foreground">
+                                                +{sectorData.sources.length - 3} autres
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="text-center py-6 text-muted-foreground">
+                            <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm mb-2">Analyse sectorielle non disponible</p>
+                            <p className="text-xs">Cliquez sur "Actualiser" pour charger les données en temps réel</p>
                         </div>
                     )}
                 </div>
@@ -533,16 +606,35 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
 
                 <Separator className="my-4" />
 
-                <Button
-                    variant="secondary"
-                    className="w-full"
-                    onClick={handleDownloadPDF}
-                    disabled={isDownloading}
-                >
-                    <Download className="h-4 w-4 mr-2" />
-                    {isDownloading ? 'Génération du PDF...' : 'Télécharger le rapport PDF complet'}
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setShowPreview(true)}
+                    >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Aperçu du rapport
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        className="flex-1"
+                        onClick={handleDownloadPDF}
+                        disabled={isDownloading}
+                    >
+                        <Download className="h-4 w-4 mr-2" />
+                        {isDownloading ? 'Génération...' : 'Télécharger PDF'}
+                    </Button>
+                </div>
             </div>
+
+            {/* PDF Preview Modal */}
+            <PDFPreviewModal
+                isOpen={showPreview}
+                onClose={() => setShowPreview(false)}
+                result={updatedResult}
+                onRefreshSectorAnalysis={handleRefreshSectorAnalysis}
+                isRefreshingSector={isRefreshingSector}
+            />
         </div>
     );
 }
