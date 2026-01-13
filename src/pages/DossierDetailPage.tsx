@@ -6,12 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  ArrowLeft, 
-  Building2, 
-  User, 
-  FileText, 
-  TrendingUp, 
+import {
+  ArrowLeft,
+  Building2,
+  User,
+  FileText,
+  TrendingUp,
   Target,
   CheckCircle,
   XCircle,
@@ -24,7 +24,8 @@ import {
   Euro,
   Clock,
   AlertTriangle,
-  History
+  History,
+  ClipboardList
 } from 'lucide-react';
 import { useDossier, useDossierDocuments, useDossierFinancieres, useUpdateDossierStatus } from '@/hooks/useDossiers';
 import { AnalyseManuelle } from '@/components/dossiers/AnalyseManuelle';
@@ -36,6 +37,7 @@ import { toast } from 'sonner';
 import { AuditHistory } from '@/components/dossiers/AuditHistory';
 import { logAuditAction } from '@/hooks/useAuditLogs';
 import { useAuth } from '@/hooks/useAuth';
+import { RapportAnalyseContent } from '@/components/rapport-analyse/RapportAnalyseContent';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -110,7 +112,7 @@ export default function DossierDetailPage() {
         secteurActivite: dossier.secteur_activite ?? undefined,
       });
       score = scoring.scoreGlobal;
-      
+
       if (scoring.statut === 'accord_favorable') {
         recommandation = 'ACCORD FAVORABLE';
       } else if (scoring.statut === 'accord_conditionne') {
@@ -177,7 +179,7 @@ export default function DossierDetailPage() {
 
   return (
     <Layout>
-      <Header 
+      <Header
         title={dossier.raison_sociale}
         subtitle={`SIREN: ${dossier.siren} • ${typeFinancementLabels[dossier.type_financement] || dossier.type_financement}`}
       />
@@ -260,7 +262,7 @@ export default function DossierDetailPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
+          <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-flex">
             <TabsTrigger value="infos" className="gap-2">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Infos</span>
@@ -280,6 +282,10 @@ export default function DossierDetailPage() {
             <TabsTrigger value="score" className="gap-2">
               <Target className="h-4 w-4" />
               <span className="hidden sm:inline">Score</span>
+            </TabsTrigger>
+            <TabsTrigger value="rapport" className="gap-2">
+              <ClipboardList className="h-4 w-4" />
+              <span className="hidden sm:inline">Rapport</span>
             </TabsTrigger>
             <TabsTrigger value="historique" className="gap-2">
               <History className="h-4 w-4" />
@@ -377,7 +383,7 @@ export default function DossierDetailPage() {
                       <p className="text-sm text-muted-foreground">Date de naissance</p>
                       <p className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        {dossier.dirigeant_date_naissance 
+                        {dossier.dirigeant_date_naissance
                           ? new Date(dossier.dirigeant_date_naissance).toLocaleDateString('fr-FR')
                           : '-'}
                       </p>
@@ -475,16 +481,21 @@ export default function DossierDetailPage() {
 
           {/* Analyse Tab */}
           <TabsContent value="analyse" className="mt-6">
-            <AnalyseManuelle 
-              dossier={dossier} 
-              documents={documents} 
-              donneesFinancieres={financieres} 
+            <AnalyseManuelle
+              dossier={dossier}
+              documents={documents}
+              donneesFinancieres={financieres}
             />
           </TabsContent>
 
           {/* Score Tab */}
           <TabsContent value="score" className="mt-6">
             <ScoringView dossier={dossier} donneesFinancieres={financieres} />
+          </TabsContent>
+
+          {/* Rapport Tab */}
+          <TabsContent value="rapport" className="mt-6">
+            <RapportAnalyseContent dossierId={id!} dossier={dossier} />
           </TabsContent>
 
           {/* Historique Tab */}
