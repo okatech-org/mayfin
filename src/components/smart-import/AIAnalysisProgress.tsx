@@ -1,17 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
     Upload, 
     Search, 
-    FileSearch, 
-    Building2, 
-    BarChart3, 
     CheckCircle2, 
     XCircle,
     Brain,
     Globe,
     FileText,
     Sparkles,
-    Cpu
+    Cpu,
+    Clock,
+    Timer
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
@@ -24,14 +23,14 @@ interface AIAnalysisProgressProps {
     error?: string | null;
 }
 
-// Main pipeline steps
+// Main pipeline steps with estimated durations in seconds
 const PIPELINE_STEPS = [
     { 
         id: 'uploading', 
         label: 'Upload des documents', 
         icon: Upload,
         description: 'Préparation des fichiers...',
-        duration: 10
+        estimatedSeconds: 3
     },
     { 
         id: 'analyzing', 
@@ -40,7 +39,7 @@ const PIPELINE_STEPS = [
         description: 'Extraction visuelle des documents',
         model: 'Gemini 2.0 Flash',
         modelColor: 'bg-blue-500',
-        duration: 30
+        estimatedSeconds: 15
     },
     { 
         id: 'extracting', 
@@ -49,7 +48,7 @@ const PIPELINE_STEPS = [
         description: 'Évaluation approfondie des données',
         model: 'GPT-4o',
         modelColor: 'bg-green-500',
-        duration: 25
+        estimatedSeconds: 12
     },
     { 
         id: 'validating', 
@@ -58,7 +57,7 @@ const PIPELINE_STEPS = [
         description: 'Analyse du contexte de marché',
         model: 'Perplexity Sonar Pro',
         modelColor: 'bg-purple-500',
-        duration: 20
+        estimatedSeconds: 10
     },
     { 
         id: 'scoring', 
@@ -67,16 +66,19 @@ const PIPELINE_STEPS = [
         description: 'Génération du rapport',
         model: 'Cohere Command R+',
         modelColor: 'bg-orange-500',
-        duration: 15
+        estimatedSeconds: 8
     },
     { 
         id: 'complete', 
         label: 'Analyse terminée', 
         icon: CheckCircle2,
         description: 'Tous les modèles ont terminé',
-        duration: 0
+        estimatedSeconds: 0
     },
 ];
+
+// Calculate total estimated time
+const TOTAL_ESTIMATED_SECONDS = PIPELINE_STEPS.reduce((acc, step) => acc + step.estimatedSeconds, 0);
 
 function getStepIndex(step: AnalysisStep): number {
     const index = PIPELINE_STEPS.findIndex((s) => s.id === step);
@@ -158,7 +160,7 @@ function ProgressRing({ progress, size = 60 }: { progress: number; size?: number
 // Neural network animation
 function NeuralAnimation() {
     return (
-        <div className="relative h-16 overflow-hidden">
+        <div className="relative h-16 overflow-hidden mt-4">
             <div className="absolute inset-0 flex items-center justify-center gap-4">
                 {[...Array(5)].map((_, i) => (
                     <div key={i} className="flex flex-col items-center gap-1">
@@ -175,7 +177,6 @@ function NeuralAnimation() {
                     </div>
                 ))}
             </div>
-            {/* Connection lines */}
             <svg className="absolute inset-0 w-full h-full" style={{ zIndex: -1 }}>
                 {[...Array(8)].map((_, i) => (
                     <line
@@ -203,11 +204,104 @@ function NeuralAnimation() {
     );
 }
 
+// Time estimation hook
+function useTimeEstimation(step: AnalysisStep, startTime: number | null) {
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const currentIndex = getStepIndex(step);
+    
+    useEffect(() => {
+        if (!startTime || step === 'complete' || step === 'error' || step === 'idle') {
+            return;
+        }
+        
+        const interval = setInterval(() => {
+            setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+        }, 1000);
+        
+        return () => clearInterval(interval);
+    }, [startTime, step]);
+    
+    const estimatedRemaining = useMemo(() => {
+        if (currentIndex < 0 || step === 'complete') return 0;
+        
+        // Sum up remaining steps
+        let remaining = 0;
+        for (let i = currentIndex; i < PIPELINE_STEPS.length; i++) {
+            remaining += PIPELINE_STEPS[i].estimatedSeconds;
+        }
+        
+        // Adjust based on current step progress
+        const currentStepDuration = PIPELINE_STEPS[currentIndex]?.estimatedSeconds || 0;
+        const stepProgress = Math.min(elapsedSeconds, currentStepDuration);
+        remaining -= stepProgress;
+        
+        return Math.max(0, remaining);
+    }, [currentIndex, elapsedSeconds, step]);
+    
+    return { elapsedSeconds, estimatedRemaining };
+}
+
+// Format seconds to MM:SS
+function formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Time display component
+function TimeDisplay({ 
+    elapsedSeconds, 
+    estimatedRemaining, 
+    isComplete 
+}: { 
+    elapsedSeconds: number; 
+    estimatedRemaining: number;
+    isComplete: boolean;
+}) {
+    if (isComplete) {
+        return (
+            <div className="flex items-center gap-2 text-success">
+                <Timer className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                    Terminé en {formatTime(elapsedSeconds)}
+                </span>
+            </div>
+        );
+    }
+    
+    return (
+        <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Timer className="h-4 w-4" />
+                <span>Écoulé: {formatTime(elapsedSeconds)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-primary">
+                <Clock className="h-4 w-4 animate-pulse" />
+                <span className="font-medium">~{formatTime(estimatedRemaining)} restant</span>
+            </div>
+        </div>
+    );
+}
+
 export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgressProps) {
     const currentIndex = getStepIndex(step);
     const isComplete = step === 'complete';
     const isError = step === 'error';
     const currentStepConfig = PIPELINE_STEPS[currentIndex];
+    
+    // Track start time
+    const [startTime, setStartTime] = useState<number | null>(null);
+    
+    useEffect(() => {
+        if (step !== 'idle' && step !== 'complete' && step !== 'error' && !startTime) {
+            setStartTime(Date.now());
+        }
+        if (step === 'idle') {
+            setStartTime(null);
+        }
+    }, [step, startTime]);
+    
+    const { elapsedSeconds, estimatedRemaining } = useTimeEstimation(step, startTime);
 
     if (step === 'idle') return null;
 
@@ -245,6 +339,24 @@ export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgress
                             </p>
                         )}
                     </div>
+                    
+                    {/* Time estimation - desktop */}
+                    <div className="hidden sm:block">
+                        <TimeDisplay 
+                            elapsedSeconds={elapsedSeconds} 
+                            estimatedRemaining={estimatedRemaining}
+                            isComplete={isComplete}
+                        />
+                    </div>
+                </div>
+                
+                {/* Mobile time display */}
+                <div className="sm:hidden mt-3">
+                    <TimeDisplay 
+                        elapsedSeconds={elapsedSeconds} 
+                        estimatedRemaining={estimatedRemaining}
+                        isComplete={isComplete}
+                    />
                 </div>
 
                 {/* Neural network animation when processing */}
@@ -253,9 +365,22 @@ export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgress
                 )}
             </div>
 
-            {/* Main progress bar */}
-            <div className="px-6 py-2 bg-muted/30">
-                <Progress value={progress} className="h-2" />
+            {/* Main progress bar with time markers */}
+            <div className="px-6 py-3 bg-muted/30">
+                <div className="flex items-center gap-3">
+                    <Progress value={progress} className="h-2 flex-1" />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {Math.round(progress)}%
+                    </span>
+                </div>
+                
+                {/* Step time indicators */}
+                {!isComplete && !isError && (
+                    <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+                        <span>Étape {currentIndex + 1}/{PIPELINE_STEPS.length - 1}</span>
+                        <span>~{PIPELINE_STEPS[currentIndex]?.estimatedSeconds || 0}s cette étape</span>
+                    </div>
+                )}
             </div>
 
             {isError && error && (
@@ -267,9 +392,14 @@ export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgress
 
             {/* Pipeline steps */}
             <div className="p-6 space-y-3">
-                <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium text-muted-foreground">Pipeline d'analyse</span>
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium text-muted-foreground">Pipeline d'analyse</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                        Total estimé: ~{TOTAL_ESTIMATED_SECONDS}s
+                    </span>
                 </div>
 
                 {PIPELINE_STEPS.map((stepConfig, index) => {
@@ -336,6 +466,16 @@ export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgress
                                             {stepConfig.model}
                                         </Badge>
                                     )}
+                                    
+                                    {/* Duration badge */}
+                                    {stepConfig.estimatedSeconds > 0 && (
+                                        <span className={cn(
+                                            'text-xs',
+                                            isActive ? 'text-primary' : 'text-muted-foreground'
+                                        )}>
+                                            ~{stepConfig.estimatedSeconds}s
+                                        </span>
+                                    )}
                                 </div>
                                 
                                 {isActive && (
@@ -377,8 +517,8 @@ export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgress
             {/* Footer with model info */}
             {!isError && (
                 <div className="px-6 py-4 bg-muted/20 border-t">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-3">
                             <span className="flex items-center gap-1">
                                 <div className="h-2 w-2 rounded-full bg-blue-500" />
                                 Gemini (OCR)
@@ -397,7 +537,11 @@ export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgress
                             </span>
                         </div>
                         
-                        {!isComplete && (
+                        {isComplete ? (
+                            <span className="text-success font-medium">
+                                ✓ 4 modèles exécutés
+                            </span>
+                        ) : (
                             <span className="text-primary animate-pulse">
                                 Traitement en cours...
                             </span>
