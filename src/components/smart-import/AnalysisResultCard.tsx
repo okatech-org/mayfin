@@ -32,7 +32,7 @@ import type { AnalysisResult, AnalyseSectorielle } from '@/hooks/useDocumentAnal
 import { generateSmartAnalysisPDF } from '@/lib/rapport-pdf-generator';
 import { generateSmartAnalysisWord } from '@/lib/rapport-word-generator';
 import { toast } from 'sonner';
-import { PDFPreviewModal } from './PDFPreviewModal';
+import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useAnalyseHistory } from '@/hooks/useAnalyseHistory';
 
@@ -684,8 +684,8 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
                 </div>
             </div>
 
-            {/* PDF Preview Modal */}
-            <PDFPreviewModal
+            {/* Document Preview Modal */}
+            <DocumentPreviewModal
                 isOpen={showPreview}
                 onClose={() => setShowPreview(false)}
                 result={updatedResult}

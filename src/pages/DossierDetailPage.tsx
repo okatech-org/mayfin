@@ -38,6 +38,7 @@ import { AuditHistory } from '@/components/dossiers/AuditHistory';
 import { logAuditAction } from '@/hooks/useAuditLogs';
 import { useAuth } from '@/hooks/useAuth';
 import { RapportAnalyseContent } from '@/components/rapport-analyse/RapportAnalyseContent';
+import { DossierReportGenerator } from '@/components/dossiers/DossierReportGenerator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -495,7 +496,10 @@ export default function DossierDetailPage() {
 
           {/* Rapport Tab */}
           <TabsContent value="rapport" className="mt-6">
-            <RapportAnalyseContent dossierId={id!} dossier={dossier} />
+            <div className="space-y-6">
+              <DossierReportGenerator dossier={dossier} financieres={financieres} />
+              <RapportAnalyseContent dossierId={id!} dossier={dossier} />
+            </div>
           </TabsContent>
 
           {/* Historique Tab */}
