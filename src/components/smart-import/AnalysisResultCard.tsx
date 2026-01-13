@@ -161,14 +161,14 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
 
     if (!data || !score) return null;
 
-    const handleDownloadPDF = async () => {
+    const handleDownloadPDF = () => {
         setIsDownloading(true);
         try {
-            await generateSmartAnalysisPDF(result);
+            generateSmartAnalysisPDF(result);
             toast.success('PDF généré avec succès');
         } catch (error) {
-            toast.error('Erreur lors de la génération du PDF');
-            console.error(error);
+            console.error('Erreur génération PDF:', error);
+            toast.error('Erreur lors de la génération du PDF: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
         } finally {
             setIsDownloading(false);
         }
