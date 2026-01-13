@@ -1,5 +1,6 @@
 // Supabase Edge Function: analyze-documents
-// Analyse documents with Lovable AI Gateway for OCR and data extraction
+// Multi-LLM Orchestration for Document Analysis
+// Gemini (OCR) → OpenAI (Analysis) → Perplexity (Market) → Cohere (Synthesis)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -8,6 +9,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ============== TYPES ==============
 interface ExtractedData {
   entreprise: {
     siren?: string;
@@ -37,6 +39,11 @@ interface ExtractedData {
       capitauxPropres?: number;
       dettesFinancieres?: number;
       tresorerie?: number;
+      totalActif?: number;
+      totalPassif?: number;
+      creancesClients?: number;
+      dettesFournisseurs?: number;
+      stocks?: number;
     }>;
   };
   financement: {
@@ -59,61 +66,98 @@ interface AnalysisResult {
       structure: number;
       activite: number;
     };
+    justifications?: {
+      solvabilite: string;
+      rentabilite: string;
+      structure: string;
+      activite: string;
+    };
   };
   recommandation?: "FAVORABLE" | "RESERVES" | "DEFAVORABLE";
   seuilAccordable?: number;
+  analyseSectorielle?: {
+    contexteMarche: string;
+    risquesSecteur: string[];
+    opportunites: string[];
+    benchmarkConcurrents: string;
+    sources: string[];
+  };
+  syntheseNarrative?: {
+    resumeExecutif: string;
+    pointsForts: string[];
+    pointsVigilance: string[];
+    recommandationsConditions: string[];
+    conclusionArgumentee: string;
+  };
+  modelsUsed: string[];
   erreur?: string;
 }
 
-const EXTRACTION_PROMPT = `Tu es un expert en analyse de documents d'entreprise française. Analyse les documents fournis et extrait les informations suivantes de manière structurée.
+// ============== PROMPTS ==============
+const GEMINI_EXTRACTION_PROMPT = `Tu es un expert en analyse de documents d'entreprise française avec une spécialisation en OCR financier.
+
+MISSION : Extraire avec précision maximale toutes les données des documents fournis.
 
 DOCUMENTS À ANALYSER :
 - Kbis / Extrait RCS
-- Bilans comptables
+- Bilans comptables (actif/passif)
+- Comptes de résultat
 - Liasses fiscales (2050-2059)
 - Statuts d'entreprise
 - Pièces d'identité du dirigeant
 - Demandes de financement
 
-INFORMATIONS À EXTRAIRE :
+EXTRACTION REQUISE :
 
 1. ENTREPRISE :
-- SIREN (9 chiffres)
-- SIRET (14 chiffres)
-- Raison sociale
-- Forme juridique (SARL, SAS, SASU, EURL, SA, etc.)
-- Date de création
-- Code NAF/APE
-- Secteur d'activité
-- Adresse du siège
+- SIREN (exactement 9 chiffres)
+- SIRET (exactement 14 chiffres)
+- Raison sociale complète
+- Forme juridique (SARL, SAS, SASU, EURL, SA, SCI, etc.)
+- Date de création (format YYYY-MM-DD)
+- Code NAF/APE (format XXXX[A-Z])
+- Secteur d'activité détaillé
+- Adresse complète du siège
 - Nombre de salariés
 
 2. DIRIGEANT :
-- Nom
+- Nom complet
 - Prénom
-- Fonction (Gérant, Président, DG, etc.)
-- Date de naissance
+- Fonction exacte (Gérant, Président, Directeur Général, etc.)
+- Date de naissance (format YYYY-MM-DD)
 - Téléphone
 - Email
 
-3. DONNÉES FINANCIÈRES (sur 3 ans si disponible) :
-Pour chaque exercice :
-- Chiffre d'affaires (compte 70)
+3. DONNÉES FINANCIÈRES (extraire TOUS les exercices disponibles, jusqu'à 5 ans) :
+Pour chaque exercice comptable :
+- Année de l'exercice
+- Chiffre d'affaires HT (compte 70)
 - Résultat net
-- EBITDA / EBE
+- EBITDA / EBE (Excédent Brut d'Exploitation)
 - Capitaux propres
-- Dettes financières
-- Trésorerie
+- Dettes financières (court et long terme)
+- Trésorerie nette
+- Total actif
+- Total passif
+- Créances clients
+- Dettes fournisseurs
+- Stocks
 
 4. FINANCEMENT (si mentionné) :
-- Montant demandé
-- Objet du financement
-- Durée souhaitée
+- Montant exact demandé
+- Objet précis du financement
+- Durée souhaitée en mois
 
 5. DOCUMENTS DÉTECTÉS :
-Liste des types de documents identifiés dans les fichiers.
+- Liste exhaustive des types de documents identifiés
 
-RÉPONDS UNIQUEMENT EN JSON avec cette structure exacte :
+RÈGLES IMPORTANTES :
+- Convertir tous les montants en euros (nombre entier ou décimal, pas de formatage)
+- Respecter scrupuleusement les formats de date
+- En cas de doute, indiquer null plutôt qu'une valeur approximative
+- Le champ confianceExtraction doit refléter la qualité de lecture (1.0 = parfait, 0.0 = illisible)
+
+RÉPONDS UNIQUEMENT EN JSON avec cette structure :
 {
   "entreprise": { ... },
   "dirigeant": { ... },
@@ -121,16 +165,353 @@ RÉPONDS UNIQUEMENT EN JSON avec cette structure exacte :
   "financement": { ... },
   "documentsDetectes": [...],
   "confianceExtraction": 0.0 à 1.0
+}`;
+
+const OPENAI_ANALYSIS_PROMPT = `Tu es un analyste crédit senior dans une banque française avec 20 ans d'expérience.
+
+MISSION : Analyser en profondeur les données financières extraites et fournir une évaluation rigoureuse.
+
+DONNÉES À ANALYSER :
+{EXTRACTED_DATA}
+
+ANALYSE REQUISE :
+
+1. SCORING DÉTAILLÉ (sur 100 pour chaque critère) :
+
+A) SOLVABILITÉ (30% du score global)
+- Ratio d'autonomie financière (Capitaux propres / Total bilan)
+- Capacité de remboursement (Dettes financières / EBITDA)
+- Couverture des charges financières
+
+B) RENTABILITÉ (30% du score global)
+- Marge nette (Résultat net / CA)
+- Marge d'EBITDA (EBITDA / CA)
+- ROE (Résultat net / Capitaux propres)
+
+C) STRUCTURE FINANCIÈRE (20% du score global)
+- BFR et sa couverture
+- Trésorerie nette
+- Ratio de liquidité générale
+
+D) ACTIVITÉ (20% du score global)
+- Évolution du CA (tendance 3 ans)
+- Régularité des résultats
+- Ancienneté de l'entreprise
+
+2. JUSTIFICATION DE CHAQUE SCORE :
+Explique précisément pourquoi tu attribues chaque score avec les ratios calculés.
+
+3. RECOMMANDATION FINALE :
+- FAVORABLE : Score >= 70
+- RESERVES : Score 45-69
+- DEFAVORABLE : Score < 45
+
+4. SEUIL ACCORDABLE :
+Calcule le montant maximum de financement acceptable selon la règle :
+- Seuil = EBITDA × facteur (2 à 4 selon le score)
+- Plafonné à 25% du CA
+
+RÉPONDS EN JSON :
+{
+  "score": {
+    "global": number,
+    "details": {
+      "solvabilite": number,
+      "rentabilite": number,
+      "structure": number,
+      "activite": number
+    },
+    "justifications": {
+      "solvabilite": "Explication détaillée avec ratios...",
+      "rentabilite": "Explication détaillée avec ratios...",
+      "structure": "Explication détaillée avec ratios...",
+      "activite": "Explication détaillée avec ratios..."
+    }
+  },
+  "recommandation": "FAVORABLE" | "RESERVES" | "DEFAVORABLE",
+  "seuilAccordable": number
+}`;
+
+const PERPLEXITY_MARKET_PROMPT = `Analyse le contexte sectoriel pour une entreprise :
+- Secteur : {SECTEUR}
+- Code NAF : {CODE_NAF}
+- Localisation : {LOCALISATION}
+
+Fournis :
+1. Contexte actuel du marché (tendances 2024-2025)
+2. Risques sectoriels majeurs (3-5 risques)
+3. Opportunités de croissance (3-5 opportunités)
+4. Benchmark : positionnement par rapport aux concurrents type
+
+Format JSON :
+{
+  "contexteMarche": "Analyse détaillée...",
+  "risquesSecteur": ["risque1", "risque2", ...],
+  "opportunites": ["opportunite1", "opportunite2", ...],
+  "benchmarkConcurrents": "Analyse comparative..."
+}`;
+
+const COHERE_SYNTHESIS_PROMPT = `Tu es un rédacteur expert en rapports bancaires.
+
+DONNÉES D'ENTRÉE :
+- Données entreprise : {EXTRACTED_DATA}
+- Analyse financière : {FINANCIAL_ANALYSIS}
+- Analyse sectorielle : {SECTOR_ANALYSIS}
+
+MISSION : Rédiger une synthèse narrative professionnelle et argumentée.
+
+STRUCTURE ATTENDUE :
+
+1. RÉSUMÉ EXÉCUTIF (3-4 phrases percutantes)
+Présente l'entreprise, sa demande et la conclusion principale.
+
+2. POINTS FORTS (3-5 éléments)
+Liste les atouts majeurs de l'entreprise.
+
+3. POINTS DE VIGILANCE (3-5 éléments)
+Liste les risques et faiblesses identifiés.
+
+4. RECOMMANDATIONS ET CONDITIONS (si accord)
+Propose des conditions particulières appropriées.
+
+5. CONCLUSION ARGUMENTÉE
+Synthèse finale justifiant la recommandation.
+
+STYLE : Professionnel, factuel, utilise des données chiffrées.
+
+Format JSON :
+{
+  "resumeExecutif": "...",
+  "pointsForts": ["...", "..."],
+  "pointsVigilance": ["...", "..."],
+  "recommandationsConditions": ["...", "..."],
+  "conclusionArgumentee": "..."
+}`;
+
+// ============== API CALLS ==============
+
+async function callGeminiOCR(files: Array<{ type: string; data: string }>): Promise<ExtractedData> {
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("GEMINI_API_KEY non configurée");
+
+  console.log("[Gemini] Starting OCR extraction...");
+
+  const parts = [
+    { text: GEMINI_EXTRACTION_PROMPT },
+    ...files.map(f => ({
+      inlineData: { mimeType: f.type, data: f.data }
+    }))
+  ];
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 8192,
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("[Gemini] Error:", error);
+    throw new Error(`Gemini OCR failed: ${response.status}`);
+  }
+
+  const result = await response.json();
+  const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  
+  // Parse JSON from response
+  let jsonStr = text;
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonMatch) jsonStr = jsonMatch[1].trim();
+  
+  console.log("[Gemini] Extraction complete");
+  return JSON.parse(jsonStr);
 }
 
-Le champ confianceExtraction indique ta confiance dans l'extraction (1.0 = très confiant, 0.5 = moyennement confiant, etc.)`;
+async function callOpenAIAnalysis(extractedData: ExtractedData): Promise<{
+  score: AnalysisResult["score"];
+  recommandation: AnalysisResult["recommandation"];
+  seuilAccordable: number;
+}> {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey) throw new Error("OPENAI_API_KEY non configurée");
 
-function calculateScore(data: ExtractedData): { global: number; details: { solvabilite: number; rentabilite: number; structure: number; activite: number } } {
+  console.log("[OpenAI] Starting financial analysis...");
+
+  const prompt = OPENAI_ANALYSIS_PROMPT.replace("{EXTRACTED_DATA}", JSON.stringify(extractedData, null, 2));
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: "Tu es un analyste crédit expert. Réponds uniquement en JSON valide." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.2,
+      max_tokens: 4096
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("[OpenAI] Error:", error);
+    throw new Error(`OpenAI analysis failed: ${response.status}`);
+  }
+
+  const result = await response.json();
+  const text = result.choices?.[0]?.message?.content || "";
+  
+  let jsonStr = text;
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonMatch) jsonStr = jsonMatch[1].trim();
+  
+  console.log("[OpenAI] Analysis complete");
+  return JSON.parse(jsonStr);
+}
+
+async function callPerplexityMarket(
+  secteur: string,
+  codeNaf: string,
+  localisation: string
+): Promise<AnalysisResult["analyseSectorielle"]> {
+  const apiKey = Deno.env.get("PERPLEXITY_API_KEY");
+  if (!apiKey) {
+    console.log("[Perplexity] API key not configured, skipping market analysis");
+    return undefined;
+  }
+
+  console.log("[Perplexity] Starting market analysis...");
+
+  const prompt = PERPLEXITY_MARKET_PROMPT
+    .replace("{SECTEUR}", secteur || "Non spécifié")
+    .replace("{CODE_NAF}", codeNaf || "Non spécifié")
+    .replace("{LOCALISATION}", localisation || "France");
+
+  const response = await fetch("https://api.perplexity.ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "sonar-pro",
+      messages: [
+        { role: "system", content: "Tu es un analyste de marché. Réponds en JSON." },
+        { role: "user", content: prompt }
+      ],
+      search_recency_filter: "month"
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("[Perplexity] Error:", error);
+    return undefined;
+  }
+
+  const result = await response.json();
+  const text = result.choices?.[0]?.message?.content || "";
+  const sources = result.citations || [];
+  
+  let jsonStr = text;
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonMatch) jsonStr = jsonMatch[1].trim();
+  
+  try {
+    const parsed = JSON.parse(jsonStr);
+    parsed.sources = sources;
+    console.log("[Perplexity] Market analysis complete");
+    return parsed;
+  } catch {
+    console.log("[Perplexity] Failed to parse response");
+    return undefined;
+  }
+}
+
+async function callCohereSynthesis(
+  extractedData: ExtractedData,
+  financialAnalysis: { score: AnalysisResult["score"]; recommandation: string },
+  sectorAnalysis: AnalysisResult["analyseSectorielle"]
+): Promise<AnalysisResult["syntheseNarrative"]> {
+  const apiKey = Deno.env.get("COHERE_API_KEY");
+  if (!apiKey) {
+    console.log("[Cohere] API key not configured, skipping synthesis");
+    return undefined;
+  }
+
+  console.log("[Cohere] Starting narrative synthesis...");
+
+  const prompt = COHERE_SYNTHESIS_PROMPT
+    .replace("{EXTRACTED_DATA}", JSON.stringify(extractedData, null, 2))
+    .replace("{FINANCIAL_ANALYSIS}", JSON.stringify(financialAnalysis, null, 2))
+    .replace("{SECTOR_ANALYSIS}", JSON.stringify(sectorAnalysis || {}, null, 2));
+
+  const response = await fetch("https://api.cohere.ai/v1/chat", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "command-r-plus",
+      message: prompt,
+      temperature: 0.3,
+      preamble: "Tu es un rédacteur expert en rapports bancaires. Réponds uniquement en JSON valide."
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("[Cohere] Error:", error);
+    return undefined;
+  }
+
+  const result = await response.json();
+  const text = result.text || "";
+  
+  let jsonStr = text;
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonMatch) jsonStr = jsonMatch[1].trim();
+  
+  try {
+    console.log("[Cohere] Synthesis complete");
+    return JSON.parse(jsonStr);
+  } catch {
+    console.log("[Cohere] Failed to parse response");
+    return undefined;
+  }
+}
+
+// ============== FALLBACK SCORING ==============
+function calculateFallbackScore(data: ExtractedData): {
+  score: AnalysisResult["score"];
+  recommandation: AnalysisResult["recommandation"];
+  seuilAccordable: number;
+} {
   const details = {
     solvabilite: 50,
     rentabilite: 50,
     structure: 50,
     activite: 50,
+  };
+  const justifications = {
+    solvabilite: "Analyse basée sur les ratios disponibles",
+    rentabilite: "Analyse basée sur les marges observées",
+    structure: "Analyse de la structure financière",
+    activite: "Analyse de l'évolution de l'activité"
   };
 
   const annees = data.finances?.annees || [];
@@ -138,7 +519,7 @@ function calculateScore(data: ExtractedData): { global: number; details: { solva
   if (annees.length > 0) {
     const dernierExercice = annees[annees.length - 1];
     
-    // Rentabilité : Résultat net / CA
+    // Rentabilité
     if (dernierExercice.chiffreAffaires && dernierExercice.resultatNet) {
       const margeNette = dernierExercice.resultatNet / dernierExercice.chiffreAffaires;
       if (margeNette > 0.1) details.rentabilite = 90;
@@ -146,27 +527,30 @@ function calculateScore(data: ExtractedData): { global: number; details: { solva
       else if (margeNette > 0.02) details.rentabilite = 60;
       else if (margeNette > 0) details.rentabilite = 45;
       else details.rentabilite = 25;
+      justifications.rentabilite = `Marge nette de ${(margeNette * 100).toFixed(1)}%`;
     }
 
-    // Solvabilité : Capitaux propres / Total bilan
+    // Solvabilité
     if (dernierExercice.capitauxPropres && dernierExercice.dettesFinancieres) {
       const ratio = dernierExercice.capitauxPropres / (dernierExercice.capitauxPropres + dernierExercice.dettesFinancieres);
       if (ratio > 0.5) details.solvabilite = 90;
       else if (ratio > 0.3) details.solvabilite = 70;
       else if (ratio > 0.15) details.solvabilite = 50;
       else details.solvabilite = 30;
+      justifications.solvabilite = `Ratio d'autonomie financière de ${(ratio * 100).toFixed(1)}%`;
     }
 
-    // Structure : Trésorerie positive
+    // Structure
     if (dernierExercice.tresorerie !== undefined) {
       if (dernierExercice.tresorerie > 100000) details.structure = 90;
       else if (dernierExercice.tresorerie > 50000) details.structure = 75;
       else if (dernierExercice.tresorerie > 10000) details.structure = 60;
       else if (dernierExercice.tresorerie > 0) details.structure = 45;
       else details.structure = 25;
+      justifications.structure = `Trésorerie de ${dernierExercice.tresorerie.toLocaleString("fr-FR")} €`;
     }
 
-    // Croissance : Évolution CA sur 3 ans
+    // Croissance
     if (annees.length >= 2) {
       const caActuel = annees[annees.length - 1].chiffreAffaires || 0;
       const caPrecedent = annees[annees.length - 2].chiffreAffaires || 0;
@@ -177,11 +561,11 @@ function calculateScore(data: ExtractedData): { global: number; details: { solva
         else if (croissance > 0) details.activite = 60;
         else if (croissance > -0.1) details.activite = 40;
         else details.activite = 20;
+        justifications.activite = `Croissance CA de ${(croissance * 100).toFixed(1)}%`;
       }
     }
   }
 
-  // Score global pondéré
   const global = Math.round(
     details.solvabilite * 0.30 +
     details.rentabilite * 0.30 +
@@ -189,56 +573,37 @@ function calculateScore(data: ExtractedData): { global: number; details: { solva
     details.activite * 0.20
   );
 
-  return { global, details };
-}
+  const recommandation: AnalysisResult["recommandation"] = 
+    global >= 70 ? "FAVORABLE" : global >= 45 ? "RESERVES" : "DEFAVORABLE";
 
-function getRecommandation(score: number): "FAVORABLE" | "RESERVES" | "DEFAVORABLE" {
-  if (score >= 70) return "FAVORABLE";
-  if (score >= 45) return "RESERVES";
-  return "DEFAVORABLE";
-}
-
-function calculateSeuilAccordable(data: ExtractedData, score: number): number {
-  const annees = data.finances?.annees || [];
-  if (annees.length === 0) return 0;
-
-  const dernierExercice = annees[annees.length - 1];
+  // Calculate threshold
+  const dernierExercice = annees[annees.length - 1] || {};
   const ca = dernierExercice.chiffreAffaires || 0;
   const ebitda = dernierExercice.ebitda || dernierExercice.resultatNet || 0;
-
-  // Règle simplifiée : Seuil = EBITDA * facteur basé sur score
-  let facteur = 0;
-  if (score >= 80) facteur = 4;
-  else if (score >= 70) facteur = 3;
-  else if (score >= 60) facteur = 2;
-  else if (score >= 45) facteur = 1.5;
-  else facteur = 1;
-
-  // Plafonné à 25% du CA
+  
+  let facteur = global >= 80 ? 4 : global >= 70 ? 3 : global >= 60 ? 2 : global >= 45 ? 1.5 : 1;
   const seuilEbitda = ebitda * facteur;
   const plafondCa = ca * 0.25;
 
-  return Math.min(seuilEbitda, plafondCa);
+  return {
+    score: { global, details, justifications },
+    recommandation,
+    seuilAccordable: Math.round(Math.min(seuilEbitda, plafondCa))
+  };
 }
 
+// ============== MAIN HANDLER ==============
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY not configured");
-    }
-
     const formData = await req.formData();
     const files: { name: string; type: string; data: string }[] = [];
     let montantDemande: number | undefined;
     let siretManuel: string | undefined;
 
-    // Process form data
     for (const [key, value] of formData.entries()) {
       if (key === "montantDemande" && typeof value === "string") {
         montantDemande = parseFloat(value) || undefined;
@@ -247,82 +612,30 @@ serve(async (req) => {
       } else if (value instanceof File) {
         const buffer = await value.arrayBuffer();
         const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-        files.push({
-          name: value.name,
-          type: value.type,
-          data: base64,
-        });
+        files.push({ name: value.name, type: value.type, data: base64 });
       }
     }
 
     if (files.length === 0) {
       return new Response(
-        JSON.stringify({ success: false, erreur: "Aucun document fourni" } as AnalysisResult),
+        JSON.stringify({ success: false, erreur: "Aucun document fourni" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
-    // Build content for Lovable AI with images
-    const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
-      { type: "text", text: EXTRACTION_PROMPT }
-    ];
+    const modelsUsed: string[] = [];
 
-    for (const file of files) {
-      contentParts.push({
-        type: "image_url",
-        image_url: {
-          url: `data:${file.type};base64,${file.data}`
-        }
-      });
+    // ====== PHASE 1: GEMINI OCR ======
+    console.log("=== PHASE 1: Document Extraction (Gemini) ===");
+    let extractedData: ExtractedData;
+    try {
+      extractedData = await callGeminiOCR(files);
+      modelsUsed.push("Gemini 2.0 Flash (OCR)");
+    } catch (error) {
+      console.error("Gemini OCR failed, using fallback:", error);
+      // Return error if we can't even extract data
+      throw new Error("Impossible d'extraire les données des documents. Vérifiez que les fichiers sont lisibles.");
     }
-
-    // Call Lovable AI Gateway
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "user",
-            content: contentParts
-          }
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ success: false, erreur: "Limite de requêtes atteinte, réessayez plus tard." } as AnalysisResult),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 429 }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ success: false, erreur: "Crédits insuffisants pour l'analyse IA." } as AnalysisResult),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 402 }
-        );
-      }
-      const errorText = await response.text();
-      console.error("AI Gateway error:", response.status, errorText);
-      throw new Error(`AI Gateway error: ${response.status}`);
-    }
-
-    const aiResponse = await response.json();
-    const text = aiResponse.choices?.[0]?.message?.content || "";
-
-    // Parse JSON response (handle markdown code blocks)
-    let jsonStr = text;
-    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1].trim();
-    }
-
-    const extractedData: ExtractedData = JSON.parse(jsonStr);
 
     // Apply manual overrides
     if (siretManuel) {
@@ -336,21 +649,77 @@ serve(async (req) => {
       extractedData.financement.montantDemande = montantDemande;
     }
 
-    // Calculate score
-    const score = calculateScore(extractedData);
-    const recommandation = getRecommandation(score.global);
-    const seuilAccordable = calculateSeuilAccordable(extractedData, score.global);
+    // ====== PHASE 2: OPENAI ANALYSIS ======
+    console.log("=== PHASE 2: Financial Analysis (OpenAI) ===");
+    let financialAnalysis: {
+      score: AnalysisResult["score"];
+      recommandation: AnalysisResult["recommandation"];
+      seuilAccordable: number;
+    };
+    
+    try {
+      financialAnalysis = await callOpenAIAnalysis(extractedData);
+      modelsUsed.push("GPT-4o (Analyse financière)");
+    } catch (error) {
+      console.error("OpenAI analysis failed, using fallback:", error);
+      financialAnalysis = calculateFallbackScore(extractedData);
+      modelsUsed.push("Scoring algorithmique (fallback)");
+    }
 
-    const analysisResult: AnalysisResult = {
+    // ====== PHASE 3: PERPLEXITY MARKET (parallel) ======
+    // ====== PHASE 4: COHERE SYNTHESIS (after market) ======
+    console.log("=== PHASE 3 & 4: Market Analysis & Synthesis (parallel) ===");
+    
+    let analyseSectorielle: AnalysisResult["analyseSectorielle"];
+    let syntheseNarrative: AnalysisResult["syntheseNarrative"];
+
+    // Start market analysis
+    const marketPromise = callPerplexityMarket(
+      extractedData.entreprise.secteurActivite || "",
+      extractedData.entreprise.codeNaf || "",
+      extractedData.entreprise.adresseSiege || ""
+    );
+
+    try {
+      analyseSectorielle = await marketPromise;
+      if (analyseSectorielle) {
+        modelsUsed.push("Perplexity Sonar Pro (Analyse sectorielle)");
+      }
+    } catch (error) {
+      console.error("Perplexity failed:", error);
+    }
+
+    // Now run synthesis with all data
+    try {
+      syntheseNarrative = await callCohereSynthesis(
+        extractedData,
+        { score: financialAnalysis.score, recommandation: financialAnalysis.recommandation || "RESERVES" },
+        analyseSectorielle
+      );
+      if (syntheseNarrative) {
+        modelsUsed.push("Cohere Command R+ (Synthèse narrative)");
+      }
+    } catch (error) {
+      console.error("Cohere failed:", error);
+    }
+
+    // ====== BUILD FINAL RESULT ======
+    const result: AnalysisResult = {
       success: true,
       data: extractedData,
-      score,
-      recommandation,
-      seuilAccordable: Math.round(seuilAccordable),
+      score: financialAnalysis.score,
+      recommandation: financialAnalysis.recommandation,
+      seuilAccordable: financialAnalysis.seuilAccordable,
+      analyseSectorielle,
+      syntheseNarrative,
+      modelsUsed
     };
 
+    console.log("=== Analysis Complete ===");
+    console.log("Models used:", modelsUsed.join(", "));
+
     return new Response(
-      JSON.stringify(analysisResult),
+      JSON.stringify(result),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
@@ -358,10 +727,7 @@ serve(async (req) => {
     console.error("Error analyzing documents:", error);
     const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'analyse";
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        erreur: errorMessage
-      } as AnalysisResult),
+      JSON.stringify({ success: false, erreur: errorMessage, modelsUsed: [] }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
