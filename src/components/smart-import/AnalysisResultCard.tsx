@@ -176,6 +176,10 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
     if (!data || !score) return null;
 
     const handleDownloadPDF = () => {
+        if (!updatedResult.data) {
+            toast.error('Aucune donnée disponible pour générer le PDF');
+            return;
+        }
         setIsDownloading(true);
         try {
             generateSmartAnalysisPDF(updatedResult);
@@ -189,6 +193,10 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
     };
 
     const handleDownloadWord = async () => {
+        if (!updatedResult.data) {
+            toast.error('Aucune donnée disponible pour générer le document Word');
+            return;
+        }
         setIsDownloadingWord(true);
         try {
             await generateSmartAnalysisWord(updatedResult);
