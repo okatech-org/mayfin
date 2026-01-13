@@ -352,7 +352,7 @@ export function useDocumentAnalysis() {
 
     const analyzeDocuments = useCallback(async (
         files: File[],
-        options?: { siret?: string; montantDemande?: number }
+        options?: { siret?: string; montantDemande?: number; apportClient?: number; typeBien?: string }
     ) => {
         try {
             reset();
@@ -369,6 +369,12 @@ export function useDocumentAnalysis() {
             }
             if (options?.montantDemande) {
                 formData.append('montantDemande', options.montantDemande.toString());
+            }
+            if (options?.apportClient) {
+                formData.append('apportClient', options.apportClient.toString());
+            }
+            if (options?.typeBien) {
+                formData.append('typeBien', options.typeBien);
             }
 
             setStep('analyzing');

@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileQuestion, ArrowRight } from 'lucide-react';
+import { Sparkles, FileQuestion, ArrowRight, Car, Laptop, Building, Coins, Wrench, Package } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DocumentDropzone } from '@/components/smart-import/DocumentDropzone';
 import { AIAnalysisProgress } from '@/components/smart-import/AIAnalysisProgress';
 import { AnalysisResultCard } from '@/components/smart-import/AnalysisResultCard';
@@ -13,11 +14,24 @@ import { useDocumentAnalysis } from '@/hooks/useDocumentAnalysis';
 import { useCreateDossier } from '@/hooks/useDossiers';
 import { toast } from 'sonner';
 
+type TypeBien = 'vehicule' | 'materiel' | 'immobilier' | 'informatique' | 'bfr' | 'autre';
+
+const TYPE_BIEN_OPTIONS: { value: TypeBien; label: string; icon: typeof Car }[] = [
+    { value: 'vehicule', label: 'Véhicule', icon: Car },
+    { value: 'materiel', label: 'Matériel / Équipement', icon: Wrench },
+    { value: 'immobilier', label: 'Immobilier', icon: Building },
+    { value: 'informatique', label: 'Informatique / IT', icon: Laptop },
+    { value: 'bfr', label: 'BFR / Trésorerie', icon: Coins },
+    { value: 'autre', label: 'Autre', icon: Package },
+];
+
 export default function SmartImportPage() {
     const navigate = useNavigate();
     const [files, setFiles] = useState<File[]>([]);
     const [siret, setSiret] = useState('');
     const [montantDemande, setMontantDemande] = useState('');
+    const [apportClient, setApportClient] = useState('');
+    const [typeBien, setTypeBien] = useState<TypeBien | ''>('');
 
     const { step, progress, result, error, isAnalyzing, isDemoMode, analyzeDocuments, reset } = useDocumentAnalysis();
     const createDossier = useCreateDossier();
@@ -31,8 +45,10 @@ export default function SmartImportPage() {
         await analyzeDocuments(files, {
             siret: siret || undefined,
             montantDemande: montantDemande ? parseFloat(montantDemande) : undefined,
+            apportClient: apportClient ? parseFloat(apportClient) : undefined,
+            typeBien: typeBien || undefined,
         });
-    }, [files, siret, montantDemande, analyzeDocuments]);
+    }, [files, siret, montantDemande, apportClient, typeBien, analyzeDocuments]);
 
     const handleCreateDossier = useCallback(async () => {
         if (!result?.data) return;
@@ -95,6 +111,8 @@ export default function SmartImportPage() {
         setFiles([]);
         setSiret('');
         setMontantDemande('');
+        setApportClient('');
+        setTypeBien('');
     };
 
     const showForm = step === 'idle' || step === 'error';
@@ -172,6 +190,53 @@ export default function SmartImportPage() {
                                     />
                                     <p className="text-xs text-muted-foreground">
                                         Obligatoire pour les créations d'entreprise
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* New fields for client contribution and asset type */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-dashed">
+                                <div className="space-y-2">
+                                    <Label htmlFor="apport">Apport client (€)</Label>
+                                    <Input
+                                        id="apport"
+                                        type="number"
+                                        value={apportClient}
+                                        onChange={(e) => setApportClient(e.target.value)}
+                                        placeholder="Montant de l'apport personnel"
+                                        disabled={isAnalyzing}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Apport personnel du client pour le financement
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="typeBien">Type de bien financé</Label>
+                                    <Select 
+                                        value={typeBien} 
+                                        onValueChange={(v) => setTypeBien(v as TypeBien)}
+                                        disabled={isAnalyzing}
+                                    >
+                                        <SelectTrigger id="typeBien">
+                                            <SelectValue placeholder="Sélectionner le type de bien" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-background border">
+                                            {TYPE_BIEN_OPTIONS.map((option) => {
+                                                const Icon = option.icon;
+                                                return (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        <div className="flex items-center gap-2">
+                                                            <Icon className="h-4 w-4 text-muted-foreground" />
+                                                            <span>{option.label}</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                );
+                                            })}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                        Permet d'orienter vers le produit adapté (ex: Arval pour véhicules)
                                     </p>
                                 </div>
                             </div>

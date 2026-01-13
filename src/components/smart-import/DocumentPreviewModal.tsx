@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, FileText, Building2, User, TrendingUp, Globe, Lightbulb, ChevronDown, ChevronUp, RefreshCw, FileType, Settings2, Save, History, Trash2, AlertTriangle, CheckCircle2, Target } from 'lucide-react';
+import { Download, FileText, Building2, User, TrendingUp, Globe, Lightbulb, ChevronDown, ChevronUp, RefreshCw, FileType, Settings2, Save, History, Trash2, AlertTriangle, CheckCircle2, Target, ShoppingCart, Car, Briefcase, ArrowRightLeft } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,7 @@ interface DocumentPreviewModalProps {
 const DEFAULT_SECTIONS: SectionConfig[] = [
     { id: 'entreprise', label: 'Informations Entreprise', icon: Building2, enabled: true, defaultExpanded: true },
     { id: 'dirigeant', label: 'Dirigeant', icon: User, enabled: true, defaultExpanded: false },
+    { id: 'besoin', label: 'Analyse du Besoin', icon: ShoppingCart, enabled: true, defaultExpanded: true },
     { id: 'scoring', label: 'Scoring Détaillé', icon: TrendingUp, enabled: true, defaultExpanded: true },
     { id: 'secteur', label: 'Analyse Sectorielle', icon: Globe, enabled: true, defaultExpanded: true },
     { id: 'synthese', label: 'Synthèse IA', icon: Lightbulb, enabled: true, defaultExpanded: true },
@@ -132,7 +133,7 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
     const { savedSections, savePreferences, isSaving, isLoading: isLoadingPrefs } = useReportPreferences();
     const { reports, createReportEntry, deleteReport, isLoading: isLoadingHistory } = useReportsHistory();
     
-    const { data, score, recommandation, seuilAccordable, analyseSectorielle, syntheseNarrative, modelsUsed } = result;
+    const { data, score, recommandation, seuilAccordable, besoinAnalyse, analyseSectorielle, syntheseNarrative, modelsUsed } = result;
 
     // Load saved preferences when available
     useEffect(() => {
@@ -393,6 +394,166 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
                                         <p className="font-medium">{data.dirigeant.telephone || '-'}</p>
                                     </div>
                                 </div>
+                            </PreviewSection>
+                        )}
+
+                        {/* Analyse du Besoin */}
+                        {isSectionEnabled('besoin') && (
+                            <PreviewSection 
+                                title="Analyse du Besoin" 
+                                icon={ShoppingCart} 
+                                variant={besoinAnalyse?.adequationBesoin && besoinAnalyse.adequationBesoin >= 70 ? 'success' : besoinAnalyse?.adequationBesoin && besoinAnalyse.adequationBesoin >= 45 ? 'warning' : 'default'}
+                                isExpanded={expandedSections.besoin}
+                                onToggle={() => toggleSection('besoin')}
+                                enabled={isSectionEnabled('besoin')}
+                                onEnabledChange={(enabled) => toggleSectionEnabled('besoin', enabled)}
+                            >
+                                {besoinAnalyse ? (
+                                    <div className="space-y-4">
+                                        {/* Investment Summary */}
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                            <div className="p-3 rounded-lg bg-background border text-center">
+                                                <p className="text-xs text-muted-foreground">Type d'investissement</p>
+                                                <p className="font-medium text-sm mt-1 capitalize">{besoinAnalyse.typeInvestissement || besoinAnalyse.categorieInvestissement}</p>
+                                            </div>
+                                            <div className="p-3 rounded-lg bg-background border text-center">
+                                                <p className="text-xs text-muted-foreground">Apport client</p>
+                                                <p className="font-medium text-sm mt-1">{formatCurrency(besoinAnalyse.apportClient)}</p>
+                                                <p className="text-xs text-muted-foreground">({besoinAnalyse.tauxApport?.toFixed(1) || 0}%)</p>
+                                            </div>
+                                            <div className="p-3 rounded-lg bg-background border text-center">
+                                                <p className="text-xs text-muted-foreground">Montant financé</p>
+                                                <p className="font-medium text-sm mt-1">{formatCurrency(besoinAnalyse.montantFinance)}</p>
+                                            </div>
+                                            <div className="p-3 rounded-lg bg-background border text-center">
+                                                <p className="text-xs text-muted-foreground">Mensualité estimée</p>
+                                                <p className="font-medium text-sm mt-1">{formatCurrency(besoinAnalyse.mensualiteEstimee)}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Adequation Score */}
+                                        <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/30 border">
+                                            <div className="flex-shrink-0">
+                                                <div className={cn(
+                                                    'h-16 w-16 rounded-full flex items-center justify-center text-2xl font-bold',
+                                                    besoinAnalyse.adequationBesoin >= 70 ? 'bg-success/20 text-success' :
+                                                    besoinAnalyse.adequationBesoin >= 45 ? 'bg-warning/20 text-warning' :
+                                                    'bg-destructive/20 text-destructive'
+                                                )}>
+                                                    {besoinAnalyse.adequationBesoin || 0}
+                                                </div>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-medium mb-1">Adéquation Besoin / Capacité</p>
+                                                <p className="text-sm text-muted-foreground">{besoinAnalyse.justificationAdequation}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Capacity Analysis */}
+                                        {besoinAnalyse.capaciteRemboursement > 0 && (
+                                            <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <Briefcase className="h-4 w-4 text-primary" />
+                                                    <span className="text-sm font-medium">Capacité de remboursement mensuelle</span>
+                                                </div>
+                                                <p className="text-xl font-bold text-primary">{formatCurrency(besoinAnalyse.capaciteRemboursement)}</p>
+                                            </div>
+                                        )}
+
+                                        {/* Product Recommendation */}
+                                        {besoinAnalyse.produitRecommande && (
+                                            <div className="p-4 rounded-lg bg-success/10 border border-success/30">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    {besoinAnalyse.categorieInvestissement === 'vehicule' ? (
+                                                        <Car className="h-5 w-5 text-success" />
+                                                    ) : (
+                                                        <Target className="h-5 w-5 text-success" />
+                                                    )}
+                                                    <span className="font-medium text-success">Produit Recommandé</span>
+                                                </div>
+                                                <p className="text-lg font-bold mb-1">{besoinAnalyse.produitRecommande.nom}</p>
+                                                <p className="text-sm text-muted-foreground mb-3">{besoinAnalyse.produitRecommande.type}</p>
+                                                
+                                                {besoinAnalyse.produitRecommande.avantages && besoinAnalyse.produitRecommande.avantages.length > 0 && (
+                                                    <div className="mb-3">
+                                                        <p className="text-xs font-medium text-success mb-1">Avantages</p>
+                                                        <ul className="space-y-1">
+                                                            {besoinAnalyse.produitRecommande.avantages.map((a, i) => (
+                                                                <li key={i} className="text-sm flex items-start gap-2">
+                                                                    <CheckCircle2 className="h-3 w-3 text-success mt-1 flex-shrink-0" />
+                                                                    <span>{a}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {besoinAnalyse.produitRecommande.conditions && besoinAnalyse.produitRecommande.conditions.length > 0 && (
+                                                    <div>
+                                                        <p className="text-xs font-medium text-muted-foreground mb-1">Conditions</p>
+                                                        <ul className="space-y-1">
+                                                            {besoinAnalyse.produitRecommande.conditions.map((c, i) => (
+                                                                <li key={i} className="text-xs text-muted-foreground">• {c}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {/* Alternative product */}
+                                                {besoinAnalyse.produitRecommande.alternative && (
+                                                    <div className="mt-3 pt-3 border-t border-success/20">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+                                                            <span className="text-xs font-medium">Alternative: {besoinAnalyse.produitRecommande.alternative.nom}</span>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground">{besoinAnalyse.produitRecommande.alternative.raison}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Alerts */}
+                                        {besoinAnalyse.alertes && besoinAnalyse.alertes.length > 0 && (
+                                            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+                                                <p className="text-sm font-medium text-destructive mb-2 flex items-center gap-2">
+                                                    <AlertTriangle className="h-4 w-4" />
+                                                    Alertes
+                                                </p>
+                                                <ul className="space-y-1">
+                                                    {besoinAnalyse.alertes.map((a, i) => (
+                                                        <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                                            <span className="text-destructive">•</span>
+                                                            <span>{a}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {/* Structuring Recommendations */}
+                                        {besoinAnalyse.recommandationsStructuration && besoinAnalyse.recommandationsStructuration.length > 0 && (
+                                            <div>
+                                                <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                                                    <Lightbulb className="h-4 w-4 text-primary" />
+                                                    Recommandations de structuration
+                                                </p>
+                                                <ul className="space-y-1 bg-muted/30 p-3 rounded-lg">
+                                                    {besoinAnalyse.recommandationsStructuration.map((r, i) => (
+                                                        <li key={i} className="text-sm text-muted-foreground">
+                                                            → {r}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 text-muted-foreground">
+                                        <ShoppingCart className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                        <p className="text-sm">Analyse du besoin non disponible</p>
+                                        <p className="text-xs mt-1">Renseignez le type de bien et l'apport client lors de l'import pour activer cette analyse</p>
+                                    </div>
+                                )}
                             </PreviewSection>
                         )}
 
