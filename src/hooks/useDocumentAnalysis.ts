@@ -77,7 +77,7 @@ export interface AnalysisResult {
     erreur?: string;
 }
 
-// Generate realistic demo data based on file names and user input
+// Generate variable demo data based on file characteristics and user input
 function generateDemoData(
     files: File[],
     options?: { siret?: string; montantDemande?: number }
@@ -105,93 +105,144 @@ function generateDemoData(
         documentsDetectes.push('Document PDF');
     }
 
-    // Extract SIREN from SIRET if provided
-    const siret = options?.siret || '12345678901234';
-    const siren = siret.length >= 9 ? siret.substring(0, 9) : '123456789';
+    // Generate a semi-random seed from file characteristics for variability
+    const totalFileSize = files.reduce((acc, f) => acc + f.size, 0);
+    const fileNameHash = files.reduce((acc, f) => acc + f.name.charCodeAt(0) + f.name.length, 0);
+    const seed = (totalFileSize + fileNameHash + Date.now()) % 1000;
 
-    // Generate realistic company data
+    // Helper for random variation
+    const vary = (base: number, variance: number) =>
+        Math.round(base + (((seed + base) % 100) / 100 - 0.5) * variance * 2);
+
+    // Company names pool
+    const companyNames = [
+        'TECH SOLUTIONS FRANCE',
+        'DIGITAL SERVICES PRO',
+        'INNOVATION CONSULTING',
+        'GREEN ENERGY SYSTEMS',
+        'SMART LOGISTICS SAS',
+        'PREMIUM DISTRIBUTION',
+        'NEXUS TECHNOLOGIES',
+        'ALPHA CONSULTING GROUP',
+        'MERIDIAN SERVICES',
+        'ATLANTIC SOLUTIONS'
+    ];
+    const formeJuridiques = ['SARL', 'SAS', 'SA', 'EURL', 'SNC'];
+    const secteurs = [
+        'Programmation informatique',
+        'Conseil en gestion',
+        'Commerce de gros',
+        'Services aux entreprises',
+        'Restauration',
+        'Transport routier',
+        'Construction',
+        'Immobilier'
+    ];
+    const noms = ['MARTIN', 'BERNARD', 'DUBOIS', 'THOMAS', 'ROBERT', 'PETIT', 'DURAND', 'LEROY', 'MOREAU', 'SIMON'];
+    const prenoms = ['Pierre', 'Jean', 'Marie', 'Sophie', 'Nicolas', 'Isabelle', 'Laurent', 'Nathalie', 'François', 'Céline'];
+
+    // Extract SIREN from SIRET if provided, otherwise generate one based on seed
+    const siret = options?.siret || `${String(seed * 100000).padStart(9, '0')}${String(seed % 10000).padStart(5, '0')}`;
+    const siren = siret.length >= 9 ? siret.substring(0, 9) : String(seed * 100000).padStart(9, '0');
+
+    // Generate realistic company data based on seed
+    const companyIndex = seed % companyNames.length;
+    const formeIndex = seed % formeJuridiques.length;
+    const secteurIndex = (seed + fileNames.length) % secteurs.length;
+
     const entreprise: ExtractedEntreprise = {
         siren,
         siret,
-        raisonSociale: 'SARL DEMO ENTREPRISE',
-        formeJuridique: 'SARL',
-        dateCreation: '2019-03-15',
-        codeNaf: '6201Z',
-        secteurActivite: 'Programmation informatique',
-        adresseSiege: '123 Avenue des Champs-Élysées, 75008 Paris',
-        nbSalaries: 12,
+        raisonSociale: companyNames[companyIndex],
+        formeJuridique: formeJuridiques[formeIndex],
+        dateCreation: `20${String(15 + (seed % 8)).padStart(2, '0')}-${String(1 + (seed % 12)).padStart(2, '0')}-${String(1 + (seed % 28)).padStart(2, '0')}`,
+        codeNaf: `${String(seed % 99).padStart(2, '0')}${String.fromCharCode(65 + (seed % 26))}`,
+        secteurActivite: secteurs[secteurIndex],
+        adresseSiege: `${vary(50, 100)} ${['rue', 'avenue', 'boulevard'][seed % 3]} ${['de la République', 'Victor Hugo', 'du Commerce', 'des Lilas'][seed % 4]}, ${String(75000 + (seed % 95) * 1000)}`,
+        nbSalaries: vary(15, 30),
     };
+
+    const nomIndex = seed % noms.length;
+    const prenomIndex = (seed + files.length) % prenoms.length;
 
     const dirigeant: ExtractedDirigeant = {
-        nom: 'DUPONT',
-        prenom: 'Jean-Pierre',
-        fonction: 'Gérant',
-        dateNaissance: '1975-06-20',
-        telephone: '06 12 34 56 78',
-        email: 'jp.dupont@demo-entreprise.fr',
+        nom: noms[nomIndex],
+        prenom: prenoms[prenomIndex],
+        fonction: ['Gérant', 'Président', 'Directeur Général'][seed % 3],
+        dateNaissance: `19${String(60 + (seed % 35)).padStart(2, '0')}-${String(1 + (seed % 12)).padStart(2, '0')}-${String(1 + (seed % 28)).padStart(2, '0')}`,
+        telephone: `06 ${String((seed * 17) % 100).padStart(2, '0')} ${String((seed * 23) % 100).padStart(2, '0')} ${String((seed * 31) % 100).padStart(2, '0')} ${String((seed * 41) % 100).padStart(2, '0')}`,
+        email: `${prenoms[prenomIndex].toLowerCase()}.${noms[nomIndex].toLowerCase()}@${companyNames[companyIndex].toLowerCase().replace(/ /g, '-').substring(0, 15)}.fr`,
     };
 
-    // Generate 3 years of financial data
+    // Generate 3 years of financial data with variation
     const currentYear = new Date().getFullYear();
+    const baseCA = vary(800000, 700000);
+    const growth = 0.05 + ((seed % 20) / 100);
+
     const finances: ExtractedFinanceYear[] = [
         {
             annee: currentYear - 2,
-            chiffreAffaires: 850000,
-            resultatNet: 45000,
-            ebitda: 78000,
-            capitauxPropres: 180000,
-            dettesFinancieres: 95000,
-            tresorerie: 42000,
+            chiffreAffaires: Math.round(baseCA),
+            resultatNet: Math.round(baseCA * (0.04 + (seed % 8) / 100)),
+            ebitda: Math.round(baseCA * (0.08 + (seed % 6) / 100)),
+            capitauxPropres: vary(200000, 150000),
+            dettesFinancieres: vary(100000, 80000),
+            tresorerie: vary(50000, 40000),
         },
         {
             annee: currentYear - 1,
-            chiffreAffaires: 920000,
-            resultatNet: 62000,
-            ebitda: 95000,
-            capitauxPropres: 242000,
-            dettesFinancieres: 80000,
-            tresorerie: 58000,
+            chiffreAffaires: Math.round(baseCA * (1 + growth)),
+            resultatNet: Math.round(baseCA * (1 + growth) * (0.05 + (seed % 7) / 100)),
+            ebitda: Math.round(baseCA * (1 + growth) * (0.09 + (seed % 5) / 100)),
+            capitauxPropres: vary(250000, 180000),
+            dettesFinancieres: vary(85000, 60000),
+            tresorerie: vary(65000, 50000),
         },
         {
             annee: currentYear,
-            chiffreAffaires: 1050000,
-            resultatNet: 78000,
-            ebitda: 115000,
-            capitauxPropres: 320000,
-            dettesFinancieres: 65000,
-            tresorerie: 72000,
+            chiffreAffaires: Math.round(baseCA * (1 + growth) * (1 + growth)),
+            resultatNet: Math.round(baseCA * (1 + growth) * (1 + growth) * (0.06 + (seed % 6) / 100)),
+            ebitda: Math.round(baseCA * (1 + growth) * (1 + growth) * (0.10 + (seed % 5) / 100)),
+            capitauxPropres: vary(320000, 220000),
+            dettesFinancieres: vary(70000, 50000),
+            tresorerie: vary(80000, 60000),
         },
     ];
 
-    const montantDemande = options?.montantDemande || 150000;
+    const montantDemande = options?.montantDemande || vary(150000, 100000);
     const financement: ExtractedFinancement = {
         montantDemande,
-        objetFinancement: 'Acquisition de matériel informatique et équipements',
-        dureeEnMois: 48,
+        objetFinancement: [
+            'Acquisition de matériel informatique et équipements',
+            'Développement et expansion commerciale',
+            'Modernisation des équipements de production',
+            'Financement du besoin en fonds de roulement',
+            'Investissement immobilier professionnel'
+        ][seed % 5],
+        dureeEnMois: [36, 48, 60, 72, 84][seed % 5],
     };
 
     // Calculate score based on financial data
     const dernierExercice = finances[finances.length - 1];
     const details: ScoreDetails = {
-        solvabilite: 75,
-        rentabilite: 72,
-        structure: 68,
-        activite: 82,
+        solvabilite: vary(70, 25),
+        rentabilite: vary(68, 25),
+        structure: vary(65, 25),
+        activite: vary(75, 25),
     };
 
-    // Adjust solvabilite based on capitaux propres ratio
+    // Adjust scores based on calculated ratios
     if (dernierExercice.capitauxPropres && dernierExercice.dettesFinancieres) {
         const ratio = dernierExercice.capitauxPropres /
             (dernierExercice.capitauxPropres + dernierExercice.dettesFinancieres);
-        if (ratio > 0.5) details.solvabilite = 88;
-        else if (ratio > 0.3) details.solvabilite = 72;
+        if (ratio > 0.5) details.solvabilite = Math.min(95, details.solvabilite + 15);
+        else if (ratio < 0.3) details.solvabilite = Math.max(30, details.solvabilite - 15);
     }
 
-    // Adjust rentabilite based on margin
     if (dernierExercice.resultatNet && dernierExercice.chiffreAffaires) {
         const marge = dernierExercice.resultatNet / dernierExercice.chiffreAffaires;
-        if (marge > 0.08) details.rentabilite = 85;
-        else if (marge > 0.05) details.rentabilite = 70;
+        if (marge > 0.08) details.rentabilite = Math.min(95, details.rentabilite + 15);
+        else if (marge < 0.03) details.rentabilite = Math.max(30, details.rentabilite - 15);
     }
 
     // Calculate global score
@@ -218,7 +269,7 @@ function generateDemoData(
             finances: { annees: finances },
             financement,
             documentsDetectes,
-            confianceExtraction: 0.87,
+            confianceExtraction: 0.80 + ((seed % 20) / 100),
         },
         score: { global, details },
         recommandation,
