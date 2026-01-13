@@ -9,13 +9,23 @@ import {
     ChevronDown,
     ChevronUp,
     Wallet,
-    FileText
+    FileText,
+    Download,
+    Cpu,
+    Globe,
+    Lightbulb,
+    Shield,
+    Target,
+    BookOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import type { AnalysisResult, ExtractedData } from '@/hooks/useDocumentAnalysis';
+import { Separator } from '@/components/ui/separator';
+import type { AnalysisResult } from '@/hooks/useDocumentAnalysis';
+import { generateSmartAnalysisPDF } from '@/lib/rapport-pdf-generator';
+import { toast } from 'sonner';
 
 interface AnalysisResultCardProps {
     result: AnalysisResult;
@@ -88,12 +98,16 @@ function DataSection({
     title,
     icon: Icon,
     children,
-    defaultOpen = false
+    defaultOpen = false,
+    badge,
+    badgeColor = 'default'
 }: {
     title: string;
     icon: typeof Building2;
     children: React.ReactNode;
     defaultOpen?: boolean;
+    badge?: string;
+    badgeColor?: 'default' | 'success' | 'warning' | 'destructive' | 'secondary';
 }) {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -104,6 +118,17 @@ function DataSection({
                     <div className="flex items-center gap-3">
                         <Icon className="h-5 w-5 text-primary" />
                         <span className="font-medium text-foreground">{title}</span>
+                        {badge && (
+                            <Badge variant={badgeColor === 'default' ? 'secondary' : badgeColor as 'secondary'}
+                                className={cn(
+                                    badgeColor === 'success' && 'bg-success/20 text-success',
+                                    badgeColor === 'warning' && 'bg-warning/20 text-warning',
+                                    badgeColor === 'destructive' && 'bg-destructive/20 text-destructive'
+                                )}
+                            >
+                                {badge}
+                            </Badge>
+                        )}
                     </div>
                     {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
@@ -131,9 +156,23 @@ function formatCurrency(value?: number): string {
 }
 
 export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCreating, isDemoMode }: AnalysisResultCardProps) {
-    const { data, score, recommandation, seuilAccordable } = result;
+    const { data, score, recommandation, seuilAccordable, modelsUsed, analyseSectorielle, syntheseNarrative } = result;
+    const [isDownloading, setIsDownloading] = useState(false);
 
     if (!data || !score) return null;
+
+    const handleDownloadPDF = async () => {
+        setIsDownloading(true);
+        try {
+            await generateSmartAnalysisPDF(result);
+            toast.success('PDF généré avec succès');
+        } catch (error) {
+            toast.error('Erreur lors de la génération du PDF');
+            console.error(error);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     return (
         <div className="rounded-xl border bg-card overflow-hidden">
@@ -143,6 +182,21 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
                     <p className="text-sm text-amber-600 font-medium text-center">
                         ⚡ Mode démonstration — Les données affichées sont simulées
                     </p>
+                </div>
+            )}
+
+            {/* Models used indicator */}
+            {modelsUsed && modelsUsed.length > 0 && !isDemoMode && (
+                <div className="bg-primary/5 border-b border-primary/20 px-6 py-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Cpu className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium text-primary">Modèles IA utilisés :</span>
+                        {modelsUsed.map((model, i) => (
+                            <Badge key={i} variant="outline" className="text-xs bg-background">
+                                {model}
+                            </Badge>
+                        ))}
+                    </div>
                 </div>
             )}
 
@@ -191,6 +245,207 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
                     </div>
                 </div>
             </div>
+
+            {/* Score justifications */}
+            {score.justifications && (
+                <div className="px-6 py-4 border-b bg-muted/20">
+                    <div className="flex items-center gap-2 mb-3">
+                        <BookOpen className="h-4 w-4 text-primary" />
+                        <span className="font-medium text-sm">Justifications du scoring</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        {score.justifications.solvabilite && (
+                            <div className="p-3 rounded-lg bg-background border">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">Solvabilité</p>
+                                <p className="text-foreground">{score.justifications.solvabilite}</p>
+                            </div>
+                        )}
+                        {score.justifications.rentabilite && (
+                            <div className="p-3 rounded-lg bg-background border">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">Rentabilité</p>
+                                <p className="text-foreground">{score.justifications.rentabilite}</p>
+                            </div>
+                        )}
+                        {score.justifications.structure && (
+                            <div className="p-3 rounded-lg bg-background border">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">Structure</p>
+                                <p className="text-foreground">{score.justifications.structure}</p>
+                            </div>
+                        )}
+                        {score.justifications.activite && (
+                            <div className="p-3 rounded-lg bg-background border">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">Activité</p>
+                                <p className="text-foreground">{score.justifications.activite}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* AI Synthesis section */}
+            {syntheseNarrative && (
+                <div className="px-6 py-4 border-b">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Lightbulb className="h-5 w-5 text-amber-500" />
+                        <span className="font-semibold text-foreground">Synthèse IA</span>
+                        <Badge variant="outline" className="text-xs">Cohere</Badge>
+                    </div>
+
+                    {syntheseNarrative.resumeExecutif && (
+                        <div className="mb-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
+                            <p className="text-sm font-medium text-primary mb-1">Résumé exécutif</p>
+                            <p className="text-sm text-foreground">{syntheseNarrative.resumeExecutif}</p>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {syntheseNarrative.pointsForts && syntheseNarrative.pointsForts.length > 0 && (
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="h-4 w-4 text-success" />
+                                    <span className="text-sm font-medium text-success">Points forts</span>
+                                </div>
+                                <ul className="space-y-1">
+                                    {syntheseNarrative.pointsForts.map((point, i) => (
+                                        <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                            <span className="text-success mt-1">•</span>
+                                            <span>{point}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {syntheseNarrative.pointsVigilance && syntheseNarrative.pointsVigilance.length > 0 && (
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <AlertTriangle className="h-4 w-4 text-warning" />
+                                    <span className="text-sm font-medium text-warning">Points de vigilance</span>
+                                </div>
+                                <ul className="space-y-1">
+                                    {syntheseNarrative.pointsVigilance.map((point, i) => (
+                                        <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                            <span className="text-warning mt-1">•</span>
+                                            <span>{point}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+
+                    {syntheseNarrative.recommandationsConditions && syntheseNarrative.recommandationsConditions.length > 0 && (
+                        <div className="mt-4 p-3 rounded-lg bg-muted/50">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Target className="h-4 w-4 text-primary" />
+                                <span className="text-sm font-medium">Recommandations</span>
+                            </div>
+                            <ul className="space-y-1">
+                                {syntheseNarrative.recommandationsConditions.map((rec, i) => (
+                                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                        <span className="text-primary mt-1">→</span>
+                                        <span>{rec}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {syntheseNarrative.conclusionArgumentee && (
+                        <div className="mt-4 p-3 rounded-lg border">
+                            <p className="text-sm font-medium text-muted-foreground mb-1">Conclusion</p>
+                            <p className="text-sm text-foreground">{syntheseNarrative.conclusionArgumentee}</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Sector analysis section */}
+            {analyseSectorielle && (
+                <div className="px-6 py-4 border-b">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Globe className="h-5 w-5 text-blue-500" />
+                        <span className="font-semibold text-foreground">Analyse sectorielle</span>
+                        <Badge variant="outline" className="text-xs">Perplexity</Badge>
+                    </div>
+
+                    {analyseSectorielle.contexteMarche && (
+                        <div className="mb-4">
+                            <p className="text-sm text-muted-foreground mb-2 font-medium">Contexte de marché</p>
+                            <p className="text-sm text-foreground bg-muted/30 p-3 rounded-lg">
+                                {analyseSectorielle.contexteMarche}
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {analyseSectorielle.risquesSecteur && analyseSectorielle.risquesSecteur.length > 0 && (
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <Shield className="h-4 w-4 text-destructive" />
+                                    <span className="text-sm font-medium text-destructive">Risques sectoriels</span>
+                                </div>
+                                <ul className="space-y-1">
+                                    {analyseSectorielle.risquesSecteur.map((risque, i) => (
+                                        <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                            <span className="text-destructive mt-1">⚠</span>
+                                            <span>{risque}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {analyseSectorielle.opportunites && analyseSectorielle.opportunites.length > 0 && (
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <TrendingUp className="h-4 w-4 text-success" />
+                                    <span className="text-sm font-medium text-success">Opportunités</span>
+                                </div>
+                                <ul className="space-y-1">
+                                    {analyseSectorielle.opportunites.map((opp, i) => (
+                                        <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                            <span className="text-success mt-1">✓</span>
+                                            <span>{opp}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+
+                    {analyseSectorielle.benchmarkConcurrents && (
+                        <div className="mt-4 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                            <p className="text-sm font-medium text-blue-600 mb-1">Benchmark concurrentiel</p>
+                            <p className="text-sm text-foreground">{analyseSectorielle.benchmarkConcurrents}</p>
+                        </div>
+                    )}
+
+                    {analyseSectorielle.sources && analyseSectorielle.sources.length > 0 && (
+                        <div className="mt-3">
+                            <p className="text-xs text-muted-foreground mb-1">Sources ({analyseSectorielle.sources.length})</p>
+                            <div className="flex flex-wrap gap-1">
+                                {analyseSectorielle.sources.slice(0, 3).map((src, i) => (
+                                    <a 
+                                        key={i} 
+                                        href={src} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-primary hover:underline truncate max-w-[200px]"
+                                    >
+                                        {new URL(src).hostname}
+                                    </a>
+                                ))}
+                                {analyseSectorielle.sources.length > 3 && (
+                                    <span className="text-xs text-muted-foreground">
+                                        +{analyseSectorielle.sources.length - 3} autres
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Detected documents */}
             {data.documentsDetectes && data.documentsDetectes.length > 0 && (
@@ -256,22 +511,36 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
             </div>
 
             {/* Actions */}
-            <div className="px-6 py-4 bg-muted/30 border-t flex flex-col sm:flex-row gap-3">
+            <div className="px-6 py-4 bg-muted/30 border-t">
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                        className="flex-1"
+                        size="lg"
+                        onClick={onCreateDossier}
+                        disabled={isCreating}
+                    >
+                        {isCreating ? 'Création en cours...' : 'Créer le dossier'}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={onManualMode}
+                        disabled={isCreating}
+                    >
+                        Mode manuel
+                    </Button>
+                </div>
+
+                <Separator className="my-4" />
+
                 <Button
-                    className="flex-1"
-                    size="lg"
-                    onClick={onCreateDossier}
-                    disabled={isCreating}
+                    variant="secondary"
+                    className="w-full"
+                    onClick={handleDownloadPDF}
+                    disabled={isDownloading}
                 >
-                    {isCreating ? 'Création en cours...' : 'Créer le dossier'}
-                </Button>
-                <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={onManualMode}
-                    disabled={isCreating}
-                >
-                    Mode manuel
+                    <Download className="h-4 w-4 mr-2" />
+                    {isDownloading ? 'Génération du PDF...' : 'Télécharger le rapport PDF complet'}
                 </Button>
             </div>
         </div>
