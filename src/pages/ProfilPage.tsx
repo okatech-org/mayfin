@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, Mail, Phone, Building2, Save, Calendar, Loader2, Camera, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Phone, Building2, Save, Calendar, Loader2, Camera, Lock, Eye, EyeOff, LogOut } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,18 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useProfile, useUpdateProfile, useUploadAvatar } from '@/hooks/useProfile';
 import { ImageCropModal } from '@/components/profile/ImageCropModal';
 import { supabase } from '@/integrations/supabase/client';
@@ -57,6 +69,8 @@ export default function ProfilPage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSigningOutAll, setIsSigningOutAll] = useState(false);
+  const navigate = useNavigate();
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -208,6 +222,23 @@ export default function ProfilPage() {
       toast.error('Une erreur est survenue');
     } finally {
       setIsChangingPassword(false);
+    }
+  };
+
+  const handleSignOutAll = async () => {
+    setIsSigningOutAll(true);
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      if (error) {
+        toast.error('Erreur lors de la déconnexion');
+        return;
+      }
+      toast.success('Déconnecté de toutes les sessions');
+      navigate('/login');
+    } catch (error) {
+      toast.error('Une erreur est survenue');
+    } finally {
+      setIsSigningOutAll(false);
     }
   };
 
@@ -511,6 +542,61 @@ export default function ProfilPage() {
                 </div>
               </form>
             </Form>
+          </CardContent>
+        </Card>
+
+        {/* Session Management Card */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LogOut className="h-5 w-5" />
+              Gestion des sessions
+            </CardTitle>
+            <CardDescription>
+              Gérez vos sessions actives sur tous les appareils
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Déconnexion globale</p>
+                <p className="text-sm text-muted-foreground">
+                  Déconnectez-vous de tous les appareils et navigateurs
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={isSigningOutAll}>
+                    {isSigningOutAll ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Déconnexion...
+                      </>
+                    ) : (
+                      <>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Tout déconnecter
+                      </>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Déconnexion de toutes les sessions</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Cette action vous déconnectera de tous les appareils et navigateurs où vous êtes connecté. 
+                      Vous devrez vous reconnecter sur chaque appareil.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleSignOutAll}>
+                      Confirmer la déconnexion
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </CardContent>
         </Card>
       </div>
