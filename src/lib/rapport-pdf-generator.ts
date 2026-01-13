@@ -383,6 +383,7 @@ export function generateSmartAnalysisPDF(
     const score = analysisResult.score;
     const synthese = analysisResult.syntheseNarrative;
     const secteur = analysisResult.analyseSectorielle;
+    const besoin = analysisResult.besoinAnalyse;
 
     // ============ PAGE 1: COVER ============
     y = 30;
@@ -510,6 +511,100 @@ export function generateSmartAnalysisPDF(
                 y += 5;
                 addParagraph(justif, true);
             }
+        }
+    }
+
+    // ============ ANALYSE DU BESOIN (new section) ============
+    if (besoin) {
+        checkPageBreak(60);
+        
+        addTitle('ANALYSE DU BESOIN CLIENT', 14);
+        y += 5;
+
+        // Investment summary table
+        const besoinData = [
+            ['Paramètre', 'Valeur'],
+            ['Type d\'investissement', besoin.typeInvestissement || besoin.categorieInvestissement || '-'],
+            ['Apport client', formatCurrency(besoin.apportClient)],
+            ['Taux d\'apport', `${besoin.tauxApport?.toFixed(1) || 0}%`],
+            ['Montant financé', formatCurrency(besoin.montantFinance)],
+            ['Mensualité estimée', formatCurrency(besoin.mensualiteEstimee)],
+            ['Capacité de remboursement', formatCurrency(besoin.capaciteRemboursement)],
+            ['Score adéquation', `${besoin.adequationBesoin || 0}/100`],
+        ];
+
+        autoTable(doc, {
+            startY: y,
+            head: [besoinData[0]],
+            body: besoinData.slice(1),
+            margin: { left: margin, right: margin },
+            styles: { fontSize: 9, cellPadding: 3 },
+            headStyles: { fillColor: [51, 102, 153], textColor: 255 },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            columnStyles: {
+                0: { fontStyle: 'bold', cellWidth: 60 },
+                1: { halign: 'right' }
+            }
+        });
+        y = getAutoTableFinalY(doc) + 10;
+
+        // Justification
+        if (besoin.justificationAdequation) {
+            addSubtitle('Justification');
+            addParagraph(besoin.justificationAdequation);
+        }
+
+        // Product recommendation
+        if (besoin.produitRecommande) {
+            checkPageBreak(40);
+            addSubtitle('Produit recommandé', [39, 174, 96]);
+            
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text(besoin.produitRecommande.nom, margin, y);
+            y += 6;
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(besoin.produitRecommande.type || '', margin, y);
+            y += 8;
+
+            if (besoin.produitRecommande.avantages?.length > 0) {
+                doc.setFont('helvetica', 'bold');
+                doc.text('Avantages:', margin, y);
+                y += 5;
+                addBulletList(besoin.produitRecommande.avantages, [39, 174, 96]);
+            }
+
+            if (besoin.produitRecommande.conditions?.length > 0) {
+                doc.setFont('helvetica', 'bold');
+                doc.text('Conditions:', margin, y);
+                y += 5;
+                addBulletList(besoin.produitRecommande.conditions);
+            }
+
+            if (besoin.produitRecommande.alternative) {
+                checkPageBreak(20);
+                doc.setFontSize(9);
+                doc.setTextColor(100, 100, 100);
+                doc.text(`Alternative: ${besoin.produitRecommande.alternative.nom} - ${besoin.produitRecommande.alternative.raison}`, margin, y);
+                doc.setTextColor(0, 0, 0);
+                y += 8;
+            }
+        }
+
+        // Alerts
+        if (besoin.alertes?.length > 0) {
+            checkPageBreak(20);
+            addSubtitle('Alertes', [231, 76, 60]);
+            addBulletList(besoin.alertes, [200, 60, 50]);
+        }
+
+        // Structuring recommendations
+        if (besoin.recommandationsStructuration?.length > 0) {
+            checkPageBreak(20);
+            addSubtitle('Recommandations de structuration');
+            addBulletList(besoin.recommandationsStructuration);
         }
     }
 
