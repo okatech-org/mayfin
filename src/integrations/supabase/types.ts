@@ -14,6 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
+      analyse_history: {
+        Row: {
+          analyse_sectorielle: Json | null
+          confidence_extraction: number | null
+          created_at: string
+          dossier_id: string | null
+          extracted_data: Json
+          id: string
+          models_used: string[] | null
+          notes: string | null
+          recommandation: string | null
+          score_activite: number | null
+          score_global: number
+          score_rentabilite: number | null
+          score_solvabilite: number | null
+          score_structure: number | null
+          seuil_accordable: number | null
+          source_files: string[] | null
+          synthese_narrative: Json | null
+          user_id: string
+          version: number | null
+        }
+        Insert: {
+          analyse_sectorielle?: Json | null
+          confidence_extraction?: number | null
+          created_at?: string
+          dossier_id?: string | null
+          extracted_data: Json
+          id?: string
+          models_used?: string[] | null
+          notes?: string | null
+          recommandation?: string | null
+          score_activite?: number | null
+          score_global: number
+          score_rentabilite?: number | null
+          score_solvabilite?: number | null
+          score_structure?: number | null
+          seuil_accordable?: number | null
+          source_files?: string[] | null
+          synthese_narrative?: Json | null
+          user_id: string
+          version?: number | null
+        }
+        Update: {
+          analyse_sectorielle?: Json | null
+          confidence_extraction?: number | null
+          created_at?: string
+          dossier_id?: string | null
+          extracted_data?: Json
+          id?: string
+          models_used?: string[] | null
+          notes?: string | null
+          recommandation?: string | null
+          score_activite?: number | null
+          score_global?: number
+          score_rentabilite?: number | null
+          score_solvabilite?: number | null
+          score_structure?: number | null
+          seuil_accordable?: number | null
+          source_files?: string[] | null
+          synthese_narrative?: Json | null
+          user_id?: string
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analyse_history_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
