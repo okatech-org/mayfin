@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, useUpdateProfile, useUploadAvatar } from '@/hooks/useProfile';
+import { ImageCropModal } from '@/components/profile/ImageCropModal';
 
 const schema = z.object({
   firstName: z.string().min(1, 'Le prénom est requis'),
@@ -38,6 +39,8 @@ export default function ProfilPage() {
   const uploadAvatar = useUploadAvatar();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -85,7 +88,7 @@ export default function ProfilPage() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -95,18 +98,32 @@ export default function ProfilPage() {
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('L\'image ne doit pas dépasser 5 Mo');
+    // Validate file size (max 10MB for cropping)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('L\'image ne doit pas dépasser 10 Mo');
       return;
     }
 
-    // Show preview
+    // Read file and open crop modal
     const reader = new FileReader();
     reader.onloadend = () => {
-      setAvatarPreview(reader.result as string);
+      setSelectedImage(reader.result as string);
+      setCropModalOpen(true);
     };
     reader.readAsDataURL(file);
+
+    // Reset input
+    event.target.value = '';
+  };
+
+  const handleCropComplete = async (croppedBlob: Blob) => {
+    // Create a File from the Blob
+    const file = new File([croppedBlob], 'avatar.jpg', { type: 'image/jpeg' });
+
+    // Show preview immediately
+    const previewUrl = URL.createObjectURL(croppedBlob);
+    setAvatarPreview(previewUrl);
+    setCropModalOpen(false);
 
     // Upload
     try {
@@ -309,6 +326,15 @@ export default function ProfilPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Image Crop Modal */}
+      <ImageCropModal
+        open={cropModalOpen}
+        onClose={() => setCropModalOpen(false)}
+        imageSrc={selectedImage || ''}
+        onCropComplete={handleCropComplete}
+        isUploading={uploadAvatar.isPending}
+      />
     </Layout>
   );
 }

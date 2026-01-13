@@ -13,7 +13,9 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useProfile } from '@/hooks/useProfile';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -31,6 +33,7 @@ export function Sidebar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { role, isAdmin } = useUserRole();
+  const { data: profile } = useProfile();
 
   const getRoleLabel = (role: string | null | undefined) => {
     switch (role) {
@@ -41,6 +44,22 @@ export function Sidebar() {
       default:
         return 'Utilisateur';
     }
+  };
+
+  const getInitials = () => {
+    const firstName = profile?.first_name || '';
+    const lastName = profile?.last_name || '';
+    if (firstName || lastName) {
+      return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    }
+    return user?.email?.charAt(0).toUpperCase() || 'U';
+  };
+
+  const getDisplayName = () => {
+    if (profile?.first_name || profile?.last_name) {
+      return `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+    }
+    return user?.email?.split('@')[0] || 'Utilisateur';
   };
 
   return (
@@ -124,13 +143,19 @@ export function Sidebar() {
 
         {/* User & Logout */}
         <div className="border-t border-sidebar-border p-3">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-accent">
-              <User className="h-4 w-4 text-sidebar-foreground" />
-            </div>
+          <Link 
+            to="/profil"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+          >
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={profile?.avatar_url || undefined} alt="Avatar" />
+              <AvatarFallback className="text-sm bg-sidebar-accent text-sidebar-foreground">
+                {getInitials()}
+              </AvatarFallback>
+            </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {user?.email?.split('@')[0] || 'Utilisateur'}
+                {getDisplayName()}
               </p>
               <div className="flex items-center gap-2">
                 <Badge
@@ -141,7 +166,7 @@ export function Sidebar() {
                 </Badge>
               </div>
             </div>
-          </div>
+          </Link>
           <button
             onClick={signOut}
             className="sidebar-link w-full mt-2 text-destructive hover:text-destructive hover:bg-destructive/10"
