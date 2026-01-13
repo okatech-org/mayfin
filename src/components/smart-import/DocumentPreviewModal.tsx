@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, FileText, Building2, User, TrendingUp, Globe, Lightbulb, ChevronDown, ChevronUp, RefreshCw, FileType, Settings2, Save, History, Trash2, AlertTriangle, CheckCircle2, Target, ShoppingCart, Car, Briefcase, ArrowRightLeft, GripVertical } from 'lucide-react';
+import { Download, FileText, Building2, User, TrendingUp, Globe, Lightbulb, ChevronDown, ChevronUp, RefreshCw, FileType, Settings2, Save, History, Trash2, AlertTriangle, CheckCircle2, Target, ShoppingCart, Car, Briefcase, ArrowRightLeft, GripVertical, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -136,15 +136,43 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
     
     const { data, score, recommandation, seuilAccordable, besoinAnalyse, analyseSectorielle, syntheseNarrative, modelsUsed } = result;
 
-    // Load saved preferences when available
+    // Load saved preferences when available (including order)
     useEffect(() => {
         if (savedSections && savedSections.length > 0 && isOpen) {
-            setSections(prev => prev.map(section => {
-                const saved = savedSections.find(s => s.id === section.id);
-                return saved ? { ...section, enabled: saved.enabled } : section;
-            }));
+            // Restore both order and enabled state from saved preferences
+            // Create a map of saved sections for quick lookup
+            const savedMap = new Map(savedSections.map(s => [s.id, s]));
+            
+            // Get sections in saved order, falling back to defaults for any missing
+            const orderedSections: SectionConfig[] = [];
+            
+            // First, add sections in saved order
+            savedSections.forEach(savedSection => {
+                const defaultSection = DEFAULT_SECTIONS.find(d => d.id === savedSection.id);
+                if (defaultSection) {
+                    orderedSections.push({
+                        ...defaultSection,
+                        enabled: savedSection.enabled
+                    });
+                }
+            });
+            
+            // Add any new default sections that weren't in saved preferences
+            DEFAULT_SECTIONS.forEach(defaultSection => {
+                if (!savedMap.has(defaultSection.id)) {
+                    orderedSections.push(defaultSection);
+                }
+            });
+            
+            setSections(orderedSections);
         }
     }, [savedSections, isOpen]);
+
+    // Reset to default configuration
+    const handleResetToDefaults = () => {
+        setSections([...DEFAULT_SECTIONS]);
+        toast.success('Configuration réinitialisée par défaut');
+    };
 
     if (!data || !score) return null;
 
@@ -283,15 +311,26 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
                                     <p className="text-sm font-medium">Personnaliser le rapport</p>
                                     <p className="text-xs text-muted-foreground">Activez/désactivez et réorganisez les sections</p>
                                 </div>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleSavePreferences}
-                                    disabled={isSaving}
-                                >
-                                    <Save className="h-4 w-4 mr-1" />
-                                    {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleResetToDefaults}
+                                        className="text-muted-foreground hover:text-foreground"
+                                    >
+                                        <RotateCcw className="h-4 w-4 mr-1" />
+                                        Réinitialiser
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleSavePreferences}
+                                        disabled={isSaving}
+                                    >
+                                        <Save className="h-4 w-4 mr-1" />
+                                        {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+                                    </Button>
+                                </div>
                             </div>
                             
                             <SortableSectionsPanel
