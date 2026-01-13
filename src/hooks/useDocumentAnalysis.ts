@@ -93,6 +93,31 @@ export interface SyntheseNarrative {
     conclusionArgumentee: string;
 }
 
+export interface BesoinAnalyse {
+    typeInvestissement: string;
+    categorieInvestissement: 'vehicule' | 'materiel' | 'immobilier' | 'bfr' | 'informatique' | 'autre';
+    apportClient: number;
+    tauxApport: number;
+    montantFinance: number;
+    mensualiteEstimee: number;
+    capaciteRemboursement: number;
+    adequationBesoin: number;
+    justificationAdequation: string;
+    produitRecommande: {
+        nom: string;
+        type: string;
+        avantages: string[];
+        conditions: string[];
+        alternative?: {
+            nom: string;
+            type: string;
+            raison: string;
+        };
+    };
+    alertes: string[];
+    recommandationsStructuration: string[];
+}
+
 export interface AnalysisResult {
     success: boolean;
     data?: ExtractedData;
@@ -103,6 +128,7 @@ export interface AnalysisResult {
     };
     recommandation?: 'FAVORABLE' | 'RESERVES' | 'DEFAVORABLE';
     seuilAccordable?: number;
+    besoinAnalyse?: BesoinAnalyse;
     analyseSectorielle?: AnalyseSectorielle;
     syntheseNarrative?: SyntheseNarrative;
     modelsUsed?: string[];
