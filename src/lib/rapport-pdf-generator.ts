@@ -298,10 +298,14 @@ export async function generateRapportPDF(
 /**
  * Generate enhanced PDF with AI analysis results (Multi-LLM)
  */
-export async function generateSmartAnalysisPDF(
+export function generateSmartAnalysisPDF(
     analysisResult: AnalysisResult,
     dossier?: Partial<DossierRow>
-): Promise<void> {
+): void {
+    if (!analysisResult || !analysisResult.data) {
+        throw new Error('Données d\'analyse manquantes pour générer le PDF');
+    }
+
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 15;
@@ -422,7 +426,7 @@ export async function generateSmartAnalysisPDF(
 
     // Executive Summary (if available)
     if (synthese?.resumeExecutif) {
-        addSubtitle('📋 Résumé Exécutif');
+        addSubtitle('Resume Executif');
         addParagraph(synthese.resumeExecutif);
         y += 5;
     }
@@ -490,13 +494,13 @@ export async function generateSmartAnalysisPDF(
 
     // Score justifications
     if (score?.justifications) {
-        addSubtitle('Justifications détaillées');
+        addSubtitle('Justifications detaillees');
         
         const justifLabels: Record<string, string> = {
-            solvabilite: '💰 Solvabilité',
-            rentabilite: '📈 Rentabilité',
-            structure: '🏗️ Structure financière',
-            activite: '📊 Activité'
+            solvabilite: 'Solvabilite',
+            rentabilite: 'Rentabilite',
+            structure: 'Structure financiere',
+            activite: 'Activite'
         };
 
         for (const [key, label] of Object.entries(justifLabels)) {
@@ -558,21 +562,21 @@ export async function generateSmartAnalysisPDF(
         addTitle('ANALYSE SECTORIELLE (IA)', 14);
         y += 5;
 
-        addSubtitle('🌐 Contexte de marché');
+        addSubtitle('Contexte de marche');
         addParagraph(secteur.contexteMarche);
 
         if (secteur.risquesSecteur?.length > 0) {
-            addSubtitle('⚠️ Risques sectoriels identifiés', [231, 76, 60]);
+            addSubtitle('Risques sectoriels identifies', [231, 76, 60]);
             addBulletList(secteur.risquesSecteur, [180, 60, 50]);
         }
 
         if (secteur.opportunites?.length > 0) {
-            addSubtitle('✅ Opportunités', [39, 174, 96]);
+            addSubtitle('Opportunites', [39, 174, 96]);
             addBulletList(secteur.opportunites, [30, 140, 80]);
         }
 
         if (secteur.benchmarkConcurrents) {
-            addSubtitle('📊 Benchmark concurrentiel');
+            addSubtitle('Benchmark concurrentiel');
             addParagraph(secteur.benchmarkConcurrents);
         }
 
@@ -600,22 +604,22 @@ export async function generateSmartAnalysisPDF(
         y += 5;
 
         if (synthese.pointsForts?.length > 0) {
-            addSubtitle('✅ Points forts', [39, 174, 96]);
+            addSubtitle('Points forts', [39, 174, 96]);
             addBulletList(synthese.pointsForts, [30, 140, 80]);
         }
 
         if (synthese.pointsVigilance?.length > 0) {
-            addSubtitle('⚠️ Points de vigilance', [241, 196, 15]);
+            addSubtitle('Points de vigilance', [241, 196, 15]);
             addBulletList(synthese.pointsVigilance, [180, 140, 20]);
         }
 
         if (synthese.recommandationsConditions?.length > 0) {
-            addSubtitle('📋 Recommandations et conditions');
+            addSubtitle('Recommandations et conditions');
             addBulletList(synthese.recommandationsConditions);
         }
 
         if (synthese.conclusionArgumentee) {
-            addSubtitle('📝 Conclusion argumentée');
+            addSubtitle('Conclusion argumentee');
             addParagraph(synthese.conclusionArgumentee);
         }
     }
