@@ -136,6 +136,19 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
     
     const { data, score, recommandation, seuilAccordable, besoinAnalyse, analyseSectorielle, syntheseNarrative, modelsUsed } = result;
 
+    // Track if there are unsaved changes
+    const hasUnsavedChanges = (() => {
+        if (!savedSections || savedSections.length === 0) {
+            // Compare with defaults if no saved preferences
+            return JSON.stringify(sections.map(s => ({ id: s.id, enabled: s.enabled }))) !== 
+                   JSON.stringify(DEFAULT_SECTIONS.map(s => ({ id: s.id, enabled: s.enabled })));
+        }
+        // Compare current sections with saved preferences (order and enabled state)
+        const currentConfig = sections.map(s => ({ id: s.id, enabled: s.enabled }));
+        const savedConfig = savedSections.map(s => ({ id: s.id, enabled: s.enabled }));
+        return JSON.stringify(currentConfig) !== JSON.stringify(savedConfig);
+    })();
+
     // Load saved preferences when available (including order)
     useEffect(() => {
         if (savedSections && savedSections.length > 0 && isOpen) {
@@ -277,10 +290,13 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setShowSettings(!showSettings)}
-                                className={cn(showSettings && 'bg-muted')}
+                                className={cn(showSettings && 'bg-muted', 'relative')}
                             >
                                 <Settings2 className="h-4 w-4 mr-1" />
                                 Personnaliser
+                                {hasUnsavedChanges && (
+                                    <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-warning animate-pulse" />
+                                )}
                             </Button>
                             <Badge variant="outline" className={cn('px-3 py-1', recoBg)}>
                                 {recommandation}
@@ -312,6 +328,12 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
                                     <p className="text-xs text-muted-foreground">Activez/désactivez et réorganisez les sections</p>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    {hasUnsavedChanges && (
+                                        <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-warning mr-1.5 animate-pulse" />
+                                            Modifications non sauvegardées
+                                        </Badge>
+                                    )}
                                     <Button
                                         variant="ghost"
                                         size="sm"
@@ -322,10 +344,10 @@ export function DocumentPreviewModal({ isOpen, onClose, result, analyseId, dossi
                                         Réinitialiser
                                     </Button>
                                     <Button
-                                        variant="outline"
+                                        variant={hasUnsavedChanges ? "default" : "outline"}
                                         size="sm"
                                         onClick={handleSavePreferences}
-                                        disabled={isSaving}
+                                        disabled={isSaving || !hasUnsavedChanges}
                                     >
                                         <Save className="h-4 w-4 mr-1" />
                                         {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
