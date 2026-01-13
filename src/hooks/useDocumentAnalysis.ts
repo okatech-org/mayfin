@@ -41,6 +41,11 @@ export interface ExtractedFinanceYear {
     capitauxPropres?: number;
     dettesFinancieres?: number;
     tresorerie?: number;
+    totalActif?: number;
+    totalPassif?: number;
+    creancesClients?: number;
+    dettesFournisseurs?: number;
+    stocks?: number;
 }
 
 export interface ExtractedFinancement {
@@ -65,15 +70,42 @@ export interface ScoreDetails {
     activite: number;
 }
 
+export interface ScoreJustifications {
+    solvabilite: string;
+    rentabilite: string;
+    structure: string;
+    activite: string;
+}
+
+export interface AnalyseSectorielle {
+    contexteMarche: string;
+    risquesSecteur: string[];
+    opportunites: string[];
+    benchmarkConcurrents: string;
+    sources: string[];
+}
+
+export interface SyntheseNarrative {
+    resumeExecutif: string;
+    pointsForts: string[];
+    pointsVigilance: string[];
+    recommandationsConditions: string[];
+    conclusionArgumentee: string;
+}
+
 export interface AnalysisResult {
     success: boolean;
     data?: ExtractedData;
     score?: {
         global: number;
         details: ScoreDetails;
+        justifications?: ScoreJustifications;
     };
     recommandation?: 'FAVORABLE' | 'RESERVES' | 'DEFAVORABLE';
     seuilAccordable?: number;
+    analyseSectorielle?: AnalyseSectorielle;
+    syntheseNarrative?: SyntheseNarrative;
+    modelsUsed?: string[];
     erreur?: string;
 }
 

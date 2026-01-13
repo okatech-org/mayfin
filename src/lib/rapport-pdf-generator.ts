@@ -4,6 +4,7 @@ import type { RapportAnalyseRow } from '@/hooks/useRapportAnalyse';
 import type { DossierRow } from '@/hooks/useDossiers';
 import { SECTIONS, QUESTIONS, DECISION_LABELS, SYNTHESE_LABELS, CONDITIONS_PARTICULIERES_OPTIONS } from '@/data/questionnaire-structure';
 import type { Question } from '@/types/rapport-analyse.types';
+import type { AnalysisResult, AnalyseSectorielle, SyntheseNarrative } from '@/hooks/useDocumentAnalysis';
 
 // Extend jsPDF type for autotable
 declare module 'jspdf' {
@@ -291,5 +292,350 @@ export async function generateRapportPDF(
 
     // Save
     const filename = `rapport_analyse_${dossier.siren}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(filename);
+}
+
+/**
+ * Generate enhanced PDF with AI analysis results (Multi-LLM)
+ */
+export async function generateSmartAnalysisPDF(
+    analysisResult: AnalysisResult,
+    dossier?: Partial<DossierRow>
+): Promise<void> {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    let y = margin;
+
+    const checkPageBreak = (neededSpace = 30) => {
+        if (y + neededSpace > doc.internal.pageSize.getHeight() - margin) {
+            doc.addPage();
+            y = margin;
+        }
+    };
+
+    const addTitle = (text: string, size = 16) => {
+        doc.setFontSize(size);
+        doc.setFont('helvetica', 'bold');
+        doc.text(text, pageWidth / 2, y, { align: 'center' });
+        y += size * 0.6;
+    };
+
+    const addSubtitle = (text: string, color: number[] = [51, 102, 153]) => {
+        checkPageBreak(15);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(color[0], color[1], color[2]);
+        doc.text(text, margin, y);
+        doc.setTextColor(0, 0, 0);
+        y += 8;
+    };
+
+    const addText = (label: string, value: string | number | null | undefined) => {
+        checkPageBreak(8);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${label}: `, margin, y);
+        const labelWidth = doc.getTextWidth(`${label}: `);
+        doc.setFont('helvetica', 'normal');
+        doc.text(String(value ?? '-'), margin + labelWidth, y);
+        y += 6;
+    };
+
+    const addParagraph = (text: string | null | undefined, indented = false) => {
+        if (!text) return;
+        checkPageBreak(15);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const xPos = indented ? margin + 5 : margin;
+        const width = indented ? pageWidth - 2 * margin - 5 : pageWidth - 2 * margin;
+        const lines = doc.splitTextToSize(text, width);
+        doc.text(lines, xPos, y);
+        y += lines.length * 5 + 3;
+    };
+
+    const addBulletList = (items: string[], color?: number[]) => {
+        for (const item of items) {
+            checkPageBreak(8);
+            if (color) doc.setTextColor(color[0], color[1], color[2]);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            const lines = doc.splitTextToSize(`• ${item}`, pageWidth - 2 * margin - 10);
+            doc.text(lines, margin + 5, y);
+            y += lines.length * 5 + 2;
+            doc.setTextColor(0, 0, 0);
+        }
+    };
+
+    const formatCurrency = (value?: number) => 
+        value ? `${value.toLocaleString('fr-FR')} €` : '-';
+
+    const formatDate = (): string => {
+        return new Date().toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric'
+        });
+    };
+
+    const data = analysisResult.data;
+    const score = analysisResult.score;
+    const synthese = analysisResult.syntheseNarrative;
+    const secteur = analysisResult.analyseSectorielle;
+
+    // ============ PAGE 1: COVER ============
+    y = 30;
+    
+    // Header with AI badge
+    doc.setFillColor(51, 102, 153);
+    doc.roundedRect(margin, y - 5, pageWidth - 2 * margin, 25, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("ANALYSE DE FINANCEMENT - IA", pageWidth / 2, y + 8, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text("Rapport Multi-LLM", pageWidth / 2, y + 15, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    y += 35;
+
+    // Company info box
+    doc.setDrawColor(51, 102, 153);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, y, pageWidth - 2 * margin, 45, 3, 3, 'FD');
+    y += 10;
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(data?.entreprise?.raisonSociale || dossier?.raison_sociale || 'Entreprise', pageWidth / 2, y, { align: 'center' });
+    y += 7;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`SIREN: ${data?.entreprise?.siren || dossier?.siren || '-'} • SIRET: ${data?.entreprise?.siret || '-'}`, pageWidth / 2, y, { align: 'center' });
+    y += 6;
+    doc.text(`${data?.entreprise?.formeJuridique || '-'} • ${data?.entreprise?.secteurActivite || '-'}`, pageWidth / 2, y, { align: 'center' });
+    y += 6;
+    doc.text(`Code NAF: ${data?.entreprise?.codeNaf || '-'} • ${data?.entreprise?.nbSalaries || 0} salariés`, pageWidth / 2, y, { align: 'center' });
+
+    y += 20;
+
+    // Executive Summary (if available)
+    if (synthese?.resumeExecutif) {
+        addSubtitle('📋 Résumé Exécutif');
+        addParagraph(synthese.resumeExecutif);
+        y += 5;
+    }
+
+    // Score and Recommendation Box
+    const recommandation = analysisResult.recommandation;
+    const scoreGlobal = score?.global || 0;
+    
+    const scoreColor = scoreGlobal >= 70 ? [39, 174, 96] 
+        : scoreGlobal >= 45 ? [241, 196, 15] 
+        : [231, 76, 60];
+    
+    checkPageBreak(35);
+    doc.setFillColor(scoreColor[0], scoreColor[1], scoreColor[2]);
+    doc.roundedRect(margin, y, pageWidth - 2 * margin, 25, 3, 3, 'F');
+
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`SCORE: ${scoreGlobal}/100 • ${recommandation || 'À ÉVALUER'}`, pageWidth / 2, y + 10, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Seuil accordable: ${formatCurrency(analysisResult.seuilAccordable)}`, pageWidth / 2, y + 18, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    y += 35;
+
+    // Models used badge
+    if (analysisResult.modelsUsed && analysisResult.modelsUsed.length > 0) {
+        doc.setFontSize(8);
+        doc.setTextColor(128, 128, 128);
+        doc.text(`Modèles utilisés: ${analysisResult.modelsUsed.join(' • ')}`, pageWidth / 2, y, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        y += 10;
+    }
+
+    // ============ PAGE 2: SCORING DETAILS ============
+    doc.addPage();
+    y = margin;
+
+    addTitle('ANALYSE DU SCORING', 14);
+    y += 5;
+
+    // Score breakdown table
+    if (score?.details) {
+        const scoreData = [
+            ['Critère', 'Score', 'Pondération', 'Contribution'],
+            ['Solvabilité', `${score.details.solvabilite}/100`, '30%', `${Math.round(score.details.solvabilite * 0.3)}`],
+            ['Rentabilité', `${score.details.rentabilite}/100`, '30%', `${Math.round(score.details.rentabilite * 0.3)}`],
+            ['Structure financière', `${score.details.structure}/100`, '20%', `${Math.round(score.details.structure * 0.2)}`],
+            ['Activité', `${score.details.activite}/100`, '20%', `${Math.round(score.details.activite * 0.2)}`],
+        ];
+
+        doc.autoTable({
+            startY: y,
+            head: [scoreData[0]],
+            body: scoreData.slice(1),
+            margin: { left: margin, right: margin },
+            styles: { fontSize: 10, cellPadding: 4 },
+            headStyles: { fillColor: [51, 102, 153], textColor: 255 },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+        });
+        y = doc.lastAutoTable.finalY + 10;
+    }
+
+    // Score justifications
+    if (score?.justifications) {
+        addSubtitle('Justifications détaillées');
+        
+        const justifLabels: Record<string, string> = {
+            solvabilite: '💰 Solvabilité',
+            rentabilite: '📈 Rentabilité',
+            structure: '🏗️ Structure financière',
+            activite: '📊 Activité'
+        };
+
+        for (const [key, label] of Object.entries(justifLabels)) {
+            const justif = score.justifications[key as keyof typeof score.justifications];
+            if (justif) {
+                checkPageBreak(20);
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.text(label, margin, y);
+                y += 5;
+                addParagraph(justif, true);
+            }
+        }
+    }
+
+    // ============ PAGE 3: FINANCIAL DATA ============
+    doc.addPage();
+    y = margin;
+
+    addTitle('DONNÉES FINANCIÈRES EXTRAITES', 14);
+    y += 5;
+
+    if (data?.finances?.annees && data.finances.annees.length > 0) {
+        const financeHeaders = ['Exercice', 'CA', 'Résultat Net', 'EBITDA', 'Capitaux Propres', 'Trésorerie'];
+        const financeRows = data.finances.annees.map(a => [
+            String(a.annee),
+            formatCurrency(a.chiffreAffaires),
+            formatCurrency(a.resultatNet),
+            formatCurrency(a.ebitda),
+            formatCurrency(a.capitauxPropres),
+            formatCurrency(a.tresorerie),
+        ]);
+
+        doc.autoTable({
+            startY: y,
+            head: [financeHeaders],
+            body: financeRows,
+            margin: { left: margin, right: margin },
+            styles: { fontSize: 8, cellPadding: 3 },
+            headStyles: { fillColor: [51, 102, 153], textColor: 255 },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+        });
+        y = doc.lastAutoTable.finalY + 10;
+    }
+
+    // Funding request
+    if (data?.financement) {
+        addSubtitle('Demande de financement');
+        addText('Montant demandé', formatCurrency(data.financement.montantDemande));
+        addText('Objet', data.financement.objetFinancement);
+        addText('Durée', data.financement.dureeEnMois ? `${data.financement.dureeEnMois} mois` : '-');
+    }
+
+    // ============ PAGE 4: SECTOR ANALYSIS (if available) ============
+    if (secteur) {
+        doc.addPage();
+        y = margin;
+
+        addTitle('ANALYSE SECTORIELLE (IA)', 14);
+        y += 5;
+
+        addSubtitle('🌐 Contexte de marché');
+        addParagraph(secteur.contexteMarche);
+
+        if (secteur.risquesSecteur?.length > 0) {
+            addSubtitle('⚠️ Risques sectoriels identifiés', [231, 76, 60]);
+            addBulletList(secteur.risquesSecteur, [180, 60, 50]);
+        }
+
+        if (secteur.opportunites?.length > 0) {
+            addSubtitle('✅ Opportunités', [39, 174, 96]);
+            addBulletList(secteur.opportunites, [30, 140, 80]);
+        }
+
+        if (secteur.benchmarkConcurrents) {
+            addSubtitle('📊 Benchmark concurrentiel');
+            addParagraph(secteur.benchmarkConcurrents);
+        }
+
+        if (secteur.sources?.length > 0) {
+            checkPageBreak(20);
+            doc.setFontSize(8);
+            doc.setTextColor(128, 128, 128);
+            doc.text('Sources:', margin, y);
+            y += 4;
+            for (const src of secteur.sources.slice(0, 5)) {
+                const srcText = src.length > 80 ? src.substring(0, 77) + '...' : src;
+                doc.text(`• ${srcText}`, margin + 5, y);
+                y += 4;
+            }
+            doc.setTextColor(0, 0, 0);
+        }
+    }
+
+    // ============ PAGE 5: AI SYNTHESIS (if available) ============
+    if (synthese) {
+        doc.addPage();
+        y = margin;
+
+        addTitle('SYNTHÈSE IA', 14);
+        y += 5;
+
+        if (synthese.pointsForts?.length > 0) {
+            addSubtitle('✅ Points forts', [39, 174, 96]);
+            addBulletList(synthese.pointsForts, [30, 140, 80]);
+        }
+
+        if (synthese.pointsVigilance?.length > 0) {
+            addSubtitle('⚠️ Points de vigilance', [241, 196, 15]);
+            addBulletList(synthese.pointsVigilance, [180, 140, 20]);
+        }
+
+        if (synthese.recommandationsConditions?.length > 0) {
+            addSubtitle('📋 Recommandations et conditions');
+            addBulletList(synthese.recommandationsConditions);
+        }
+
+        if (synthese.conclusionArgumentee) {
+            addSubtitle('📝 Conclusion argumentée');
+            addParagraph(synthese.conclusionArgumentee);
+        }
+    }
+
+    // ============ FOOTER ============
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(128, 128, 128);
+        doc.text(
+            `Page ${i}/${totalPages} • Généré le ${formatDate()} • Document confidentiel`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 10,
+            { align: 'center' }
+        );
+    }
+
+    // Save
+    const siren = data?.entreprise?.siren || dossier?.siren || 'unknown';
+    const filename = `analyse_ia_${siren}_${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(filename);
 }
