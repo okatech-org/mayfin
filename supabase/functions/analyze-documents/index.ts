@@ -9,6 +9,118 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ============== DIAGNOSTIC & ERROR HANDLING ==============
+interface ApiKeyStatus {
+  name: string;
+  configured: boolean;
+  required: boolean;
+  maskedValue?: string;
+}
+
+interface DiagnosticResult {
+  timestamp: string;
+  apiKeys: ApiKeyStatus[];
+  allRequiredConfigured: boolean;
+  warnings: string[];
+}
+
+function maskApiKey(key: string | undefined): string {
+  if (!key) return "[NON CONFIGURÉE]";
+  if (key.length <= 8) return "****";
+  return `${key.substring(0, 4)}...${key.substring(key.length - 4)}`;
+}
+
+function runDiagnostics(): DiagnosticResult {
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+  const openaiKey = Deno.env.get("OPENAI_API_KEY");
+  const perplexityKey = Deno.env.get("PERPLEXITY_API_KEY");
+  const cohereKey = Deno.env.get("COHERE_API_KEY");
+
+  const apiKeys: ApiKeyStatus[] = [
+    {
+      name: "GEMINI_API_KEY",
+      configured: !!geminiKey,
+      required: true,
+      maskedValue: maskApiKey(geminiKey)
+    },
+    {
+      name: "OPENAI_API_KEY",
+      configured: !!openaiKey,
+      required: true,
+      maskedValue: maskApiKey(openaiKey)
+    },
+    {
+      name: "PERPLEXITY_API_KEY",
+      configured: !!perplexityKey,
+      required: false,
+      maskedValue: maskApiKey(perplexityKey)
+    },
+    {
+      name: "COHERE_API_KEY",
+      configured: !!cohereKey,
+      required: false,
+      maskedValue: maskApiKey(cohereKey)
+    }
+  ];
+
+  const warnings: string[] = [];
+  const requiredKeys = apiKeys.filter(k => k.required);
+  const missingRequired = requiredKeys.filter(k => !k.configured);
+
+  if (missingRequired.length > 0) {
+    warnings.push(`⚠️ Clés API requises manquantes: ${missingRequired.map(k => k.name).join(", ")}`);
+  }
+
+  const optionalMissing = apiKeys.filter(k => !k.required && !k.configured);
+  if (optionalMissing.length > 0) {
+    warnings.push(`ℹ️ Clés API optionnelles non configurées: ${optionalMissing.map(k => k.name).join(", ")} (fonctionnalités réduites)`);
+  }
+
+  return {
+    timestamp: new Date().toISOString(),
+    apiKeys,
+    allRequiredConfigured: missingRequired.length === 0,
+    warnings
+  };
+}
+
+// Log diagnostics at startup
+console.log("🚀 Edge Function analyze-documents démarrée");
+const startupDiagnostics = runDiagnostics();
+console.log("📋 Diagnostic des clés API au démarrage:");
+startupDiagnostics.apiKeys.forEach(key => {
+  const status = key.configured ? "✅" : (key.required ? "❌" : "⚪");
+  const requiredLabel = key.required ? "[REQUIS]" : "[OPTIONNEL]";
+  console.log(`  ${status} ${key.name} ${requiredLabel}: ${key.maskedValue}`);
+});
+if (startupDiagnostics.warnings.length > 0) {
+  startupDiagnostics.warnings.forEach(w => console.log(w));
+}
+
+class ApiError extends Error {
+  public readonly apiName: string;
+  public readonly statusCode?: number;
+  public readonly details?: string;
+  public readonly suggestion: string;
+
+  constructor(apiName: string, message: string, options?: { statusCode?: number; details?: string; suggestion?: string }) {
+    super(message);
+    this.name = "ApiError";
+    this.apiName = apiName;
+    this.statusCode = options?.statusCode;
+    this.details = options?.details;
+    this.suggestion = options?.suggestion || "Vérifiez la configuration de la clé API";
+  }
+
+  toDetailedMessage(): string {
+    let msg = `[${this.apiName}] ${this.message}`;
+    if (this.statusCode) msg += ` (Code: ${this.statusCode})`;
+    if (this.details) msg += ` - Détails: ${this.details}`;
+    msg += ` | Suggestion: ${this.suggestion}`;
+    return msg;
+  }
+}
+
 // ============== TYPES ==============
 interface ExtractedData {
   entreprise: {
@@ -292,9 +404,15 @@ Format JSON :
 
 async function callGeminiOCR(files: Array<{ type: string; data: string }>): Promise<ExtractedData> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) throw new Error("GEMINI_API_KEY non configurée");
-
-  console.log("[Gemini] Starting OCR extraction...");
+  
+  console.log("[Gemini] Vérification de la clé API...");
+  if (!apiKey) {
+    throw new ApiError("Gemini", "Clé API GEMINI_API_KEY non configurée", {
+      suggestion: "Ajoutez GEMINI_API_KEY dans les secrets du projet (Cloud → Secrets)"
+    });
+  }
+  console.log(`[Gemini] Clé API présente: ${maskApiKey(apiKey)}`);
+  console.log(`[Gemini] Démarrage de l'extraction OCR pour ${files.length} fichier(s)...`);
 
   const parts = [
     { text: GEMINI_EXTRACTION_PROMPT },
@@ -303,37 +421,83 @@ async function callGeminiOCR(files: Array<{ type: string; data: string }>): Prom
     }))
   ];
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 8192,
-        }
-      })
-    }
-  );
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 8192,
+          }
+        })
+      }
+    );
+  } catch (networkError) {
+    throw new ApiError("Gemini", "Erreur réseau lors de la connexion à l'API Gemini", {
+      details: networkError instanceof Error ? networkError.message : "Erreur inconnue",
+      suggestion: "Vérifiez la connectivité réseau ou réessayez"
+    });
+  }
 
   if (!response.ok) {
-    const error = await response.text();
-    console.error("[Gemini] Error:", error);
-    throw new Error(`Gemini OCR failed: ${response.status}`);
+    const errorText = await response.text();
+    console.error("[Gemini] Erreur API:", response.status, errorText);
+    
+    let errorDetails = "";
+    let suggestion = "Vérifiez que la clé API est valide";
+    
+    if (response.status === 400) {
+      errorDetails = "Requête invalide - format de fichier non supporté ou données corrompues";
+      suggestion = "Vérifiez que les fichiers sont des PDF ou images valides";
+    } else if (response.status === 401 || response.status === 403) {
+      errorDetails = "Authentification échouée - clé API invalide ou expirée";
+      suggestion = "Vérifiez et mettez à jour la clé GEMINI_API_KEY dans les secrets";
+    } else if (response.status === 429) {
+      errorDetails = "Quota dépassé ou trop de requêtes";
+      suggestion = "Attendez quelques minutes ou augmentez votre quota Gemini";
+    } else if (response.status >= 500) {
+      errorDetails = "Erreur serveur Gemini";
+      suggestion = "Réessayez dans quelques instants";
+    }
+    
+    throw new ApiError("Gemini", `Erreur API Gemini`, {
+      statusCode: response.status,
+      details: errorDetails || errorText.substring(0, 200),
+      suggestion
+    });
   }
 
   const result = await response.json();
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  
+  if (!text) {
+    throw new ApiError("Gemini", "Réponse vide de l'API Gemini", {
+      details: "Aucun texte extrait des documents",
+      suggestion: "Vérifiez que les documents sont lisibles et contiennent du texte"
+    });
+  }
   
   // Parse JSON from response
   let jsonStr = text;
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) jsonStr = jsonMatch[1].trim();
   
-  console.log("[Gemini] Extraction complete");
-  return JSON.parse(jsonStr);
+  try {
+    const parsed = JSON.parse(jsonStr);
+    console.log("[Gemini] ✅ Extraction OCR terminée avec succès");
+    return parsed;
+  } catch (parseError) {
+    console.error("[Gemini] Erreur parsing JSON:", jsonStr.substring(0, 500));
+    throw new ApiError("Gemini", "Impossible de parser la réponse JSON de Gemini", {
+      details: "La réponse n'est pas un JSON valide",
+      suggestion: "Les documents peuvent être difficiles à lire, essayez avec des fichiers de meilleure qualité"
+    });
+  }
 }
 
 async function callOpenAIAnalysis(extractedData: ExtractedData): Promise<{
@@ -342,33 +506,61 @@ async function callOpenAIAnalysis(extractedData: ExtractedData): Promise<{
   seuilAccordable: number;
 }> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
-  if (!apiKey) throw new Error("OPENAI_API_KEY non configurée");
-
-  console.log("[OpenAI] Starting financial analysis...");
+  
+  console.log("[OpenAI] Vérification de la clé API...");
+  if (!apiKey) {
+    throw new ApiError("OpenAI", "Clé API OPENAI_API_KEY non configurée", {
+      suggestion: "Ajoutez OPENAI_API_KEY dans les secrets du projet (Cloud → Secrets)"
+    });
+  }
+  console.log(`[OpenAI] Clé API présente: ${maskApiKey(apiKey)}`);
+  console.log("[OpenAI] Démarrage de l'analyse financière...");
 
   const prompt = OPENAI_ANALYSIS_PROMPT.replace("{EXTRACTED_DATA}", JSON.stringify(extractedData, null, 2));
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: "Tu es un analyste crédit expert. Réponds uniquement en JSON valide." },
-        { role: "user", content: prompt }
-      ],
-      temperature: 0.2,
-      max_tokens: 4096
-    })
-  });
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: "Tu es un analyste crédit expert. Réponds uniquement en JSON valide." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 4096
+      })
+    });
+  } catch (networkError) {
+    throw new ApiError("OpenAI", "Erreur réseau lors de la connexion à l'API OpenAI", {
+      details: networkError instanceof Error ? networkError.message : "Erreur inconnue",
+      suggestion: "Vérifiez la connectivité réseau ou réessayez"
+    });
+  }
 
   if (!response.ok) {
-    const error = await response.text();
-    console.error("[OpenAI] Error:", error);
-    throw new Error(`OpenAI analysis failed: ${response.status}`);
+    const errorText = await response.text();
+    console.error("[OpenAI] Erreur API:", response.status, errorText);
+    
+    let suggestion = "Vérifiez que la clé API est valide";
+    if (response.status === 401) {
+      suggestion = "Clé API invalide - vérifiez OPENAI_API_KEY dans les secrets";
+    } else if (response.status === 429) {
+      suggestion = "Quota dépassé - vérifiez votre compte OpenAI ou attendez";
+    } else if (response.status === 500 || response.status === 503) {
+      suggestion = "Erreur serveur OpenAI - réessayez dans quelques instants";
+    }
+    
+    throw new ApiError("OpenAI", "Erreur API OpenAI", {
+      statusCode: response.status,
+      details: errorText.substring(0, 200),
+      suggestion
+    });
   }
 
   const result = await response.json();
@@ -378,8 +570,16 @@ async function callOpenAIAnalysis(extractedData: ExtractedData): Promise<{
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) jsonStr = jsonMatch[1].trim();
   
-  console.log("[OpenAI] Analysis complete");
-  return JSON.parse(jsonStr);
+  try {
+    const parsed = JSON.parse(jsonStr);
+    console.log("[OpenAI] ✅ Analyse financière terminée avec succès");
+    return parsed;
+  } catch {
+    console.error("[OpenAI] Erreur parsing JSON");
+    throw new ApiError("OpenAI", "Impossible de parser la réponse JSON d'OpenAI", {
+      suggestion: "Réessayez l'analyse"
+    });
+  }
 }
 
 async function callPerplexityMarket(
@@ -594,8 +794,51 @@ function calculateFallbackScore(data: ExtractedData): {
 
 // ============== MAIN HANDLER ==============
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Handle diagnostic endpoint
+  const url = new URL(req.url);
+  if (url.searchParams.get("diagnostic") === "true") {
+    console.log("📋 Requête de diagnostic reçue");
+    const diagnostic = runDiagnostics();
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        diagnostic,
+        message: diagnostic.allRequiredConfigured 
+          ? "✅ Toutes les clés API requises sont configurées"
+          : "❌ Des clés API requises sont manquantes"
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  console.log("\n" + "=".repeat(60));
+  console.log("📥 Nouvelle requête d'analyse de documents");
+  console.log("=".repeat(60));
+
+  // Pre-check required API keys before processing
+  const preCheckDiagnostic = runDiagnostics();
+  if (!preCheckDiagnostic.allRequiredConfigured) {
+    const missingKeys = preCheckDiagnostic.apiKeys
+      .filter(k => k.required && !k.configured)
+      .map(k => k.name);
+    
+    console.error("❌ Clés API requises manquantes:", missingKeys.join(", "));
+    
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        erreur: `Configuration incomplète: clés API manquantes (${missingKeys.join(", ")})`,
+        diagnostic: preCheckDiagnostic,
+        suggestion: "Ajoutez les clés API manquantes dans Cloud → Secrets",
+        modelsUsed: [] 
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+    );
   }
 
   try {
@@ -610,6 +853,7 @@ serve(async (req) => {
       } else if (key === "siret" && typeof value === "string") {
         siretManuel = value || undefined;
       } else if (value instanceof File) {
+        console.log(`📎 Fichier reçu: ${value.name} (${value.type}, ${(value.size / 1024).toFixed(1)} Ko)`);
         const buffer = await value.arrayBuffer();
         const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
         files.push({ name: value.name, type: value.type, data: base64 });
@@ -617,23 +861,46 @@ serve(async (req) => {
     }
 
     if (files.length === 0) {
+      console.error("❌ Aucun document fourni");
       return new Response(
-        JSON.stringify({ success: false, erreur: "Aucun document fourni" }),
+        JSON.stringify({ success: false, erreur: "Aucun document fourni", modelsUsed: [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
+    console.log(`📄 ${files.length} fichier(s) à analyser`);
+    if (siretManuel) console.log(`🏢 SIRET fourni: ${siretManuel}`);
+    if (montantDemande) console.log(`💰 Montant demandé: ${montantDemande.toLocaleString("fr-FR")} €`);
+
     const modelsUsed: string[] = [];
 
     // ====== PHASE 1: GEMINI OCR ======
-    console.log("=== PHASE 1: Document Extraction (Gemini) ===");
+    console.log("\n" + "─".repeat(40));
+    console.log("🔍 PHASE 1: Extraction OCR (Gemini)");
+    console.log("─".repeat(40));
+    
     let extractedData: ExtractedData;
     try {
       extractedData = await callGeminiOCR(files);
       modelsUsed.push("Gemini 2.0 Flash (OCR)");
+      console.log("✅ Phase 1 terminée avec succès");
     } catch (error) {
-      console.error("Gemini OCR failed, using fallback:", error);
-      // Return error if we can't even extract data
+      if (error instanceof ApiError) {
+        console.error(`❌ Erreur Gemini: ${error.toDetailedMessage()}`);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            erreur: error.message,
+            details: error.details,
+            suggestion: error.suggestion,
+            apiName: error.apiName,
+            statusCode: error.statusCode,
+            modelsUsed: [] 
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+        );
+      }
+      console.error("❌ Erreur inattendue lors de l'extraction:", error);
       throw new Error("Impossible d'extraire les données des documents. Vérifiez que les fichiers sont lisibles.");
     }
 
@@ -724,10 +991,42 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("Error analyzing documents:", error);
-    const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'analyse";
+    console.error("\n" + "=".repeat(60));
+    console.error("❌ ERREUR LORS DE L'ANALYSE");
+    console.error("=".repeat(60));
+    
+    if (error instanceof ApiError) {
+      console.error(`API: ${error.apiName}`);
+      console.error(`Message: ${error.message}`);
+      console.error(`Code: ${error.statusCode || "N/A"}`);
+      console.error(`Détails: ${error.details || "N/A"}`);
+      console.error(`Suggestion: ${error.suggestion}`);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          erreur: error.message,
+          details: error.details,
+          suggestion: error.suggestion,
+          apiName: error.apiName,
+          statusCode: error.statusCode,
+          modelsUsed: [] 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
+    
+    const errorMessage = error instanceof Error ? error.message : "Erreur inconnue lors de l'analyse";
+    console.error(`Message: ${errorMessage}`);
+    console.error(`Stack: ${error instanceof Error ? error.stack : "N/A"}`);
+    
     return new Response(
-      JSON.stringify({ success: false, erreur: errorMessage, modelsUsed: [] }),
+      JSON.stringify({ 
+        success: false, 
+        erreur: errorMessage,
+        suggestion: "Vérifiez les logs pour plus de détails ou réessayez",
+        modelsUsed: [] 
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
