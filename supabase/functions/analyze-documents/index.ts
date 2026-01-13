@@ -1249,12 +1249,18 @@ serve(async (req) => {
     const files: { name: string; type: string; data: string }[] = [];
     let montantDemande: number | undefined;
     let siretManuel: string | undefined;
+    let apportClient: number | undefined;
+    let typeBien: string | undefined;
 
     for (const [key, value] of formData.entries()) {
       if (key === "montantDemande" && typeof value === "string") {
         montantDemande = parseFloat(value) || undefined;
       } else if (key === "siret" && typeof value === "string") {
         siretManuel = value || undefined;
+      } else if (key === "apportClient" && typeof value === "string") {
+        apportClient = parseFloat(value) || undefined;
+      } else if (key === "typeBien" && typeof value === "string") {
+        typeBien = value || undefined;
       } else if (value instanceof File) {
         console.log(`📎 Fichier reçu: ${value.name} (${value.type}, ${(value.size / 1024).toFixed(1)} Ko)`);
         const buffer = await value.arrayBuffer();
@@ -1274,6 +1280,8 @@ serve(async (req) => {
     console.log(`📄 ${files.length} fichier(s) à analyser`);
     if (siretManuel) console.log(`🏢 SIRET fourni: ${siretManuel}`);
     if (montantDemande) console.log(`💰 Montant demandé: ${montantDemande.toLocaleString("fr-FR")} €`);
+    if (apportClient) console.log(`💵 Apport client: ${apportClient.toLocaleString("fr-FR")} €`);
+    if (typeBien) console.log(`📦 Type de bien: ${typeBien}`);
 
     const modelsUsed: string[] = [];
 
@@ -1317,6 +1325,14 @@ serve(async (req) => {
     if (montantDemande) {
       extractedData.financement = extractedData.financement || {};
       extractedData.financement.montantDemande = montantDemande;
+    }
+    if (apportClient !== undefined) {
+      extractedData.financement = extractedData.financement || {};
+      extractedData.financement.apportClient = apportClient;
+    }
+    if (typeBien) {
+      extractedData.financement = extractedData.financement || {};
+      extractedData.financement.typeInvestissement = typeBien;
     }
 
     // ====== PHASE 2: OPENAI ANALYSIS ======

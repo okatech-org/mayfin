@@ -28,6 +28,7 @@ export async function generateSmartAnalysisWord(
     const score = analysisResult.score;
     const synthese = analysisResult.syntheseNarrative;
     const secteur = analysisResult.analyseSectorielle;
+    const besoin = analysisResult.besoinAnalyse;
 
     const children: Paragraph[] = [];
 
@@ -248,6 +249,168 @@ export async function generateSmartAnalysisWord(
                         })
                     );
                 }
+            });
+        }
+    }
+
+    // Analyse du Besoin
+    if (besoin) {
+        children.push(
+            new Paragraph({
+                text: 'ANALYSE DU BESOIN CLIENT',
+                heading: HeadingLevel.HEADING_1,
+                spacing: { before: 400, after: 200 }
+            })
+        );
+
+        // Investment summary
+        const besoinInfo = [
+            ['Type d\'investissement', besoin.typeInvestissement || besoin.categorieInvestissement || '-'],
+            ['Apport client', formatCurrency(besoin.apportClient)],
+            ['Taux d\'apport', `${besoin.tauxApport?.toFixed(1) || 0}%`],
+            ['Montant financé', formatCurrency(besoin.montantFinance)],
+            ['Mensualité estimée', formatCurrency(besoin.mensualiteEstimee)],
+            ['Capacité de remboursement', formatCurrency(besoin.capaciteRemboursement)],
+            ['Score adéquation', `${besoin.adequationBesoin || 0}/100`]
+        ];
+
+        besoinInfo.forEach(([label, value]) => {
+            children.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: `${label}: `, bold: true }),
+                        new TextRun({ text: value })
+                    ],
+                    spacing: { after: 80 }
+                })
+            );
+        });
+
+        // Justification
+        if (besoin.justificationAdequation) {
+            children.push(
+                new Paragraph({
+                    text: 'Justification:',
+                    heading: HeadingLevel.HEADING_2,
+                    spacing: { before: 200, after: 100 }
+                })
+            );
+            children.push(
+                new Paragraph({
+                    text: besoin.justificationAdequation,
+                    spacing: { after: 200 }
+                })
+            );
+        }
+
+        // Product recommendation
+        if (besoin.produitRecommande) {
+            children.push(
+                new Paragraph({
+                    text: 'Produit recommandé:',
+                    heading: HeadingLevel.HEADING_2,
+                    spacing: { before: 200, after: 100 }
+                })
+            );
+
+            children.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: besoin.produitRecommande.nom, bold: true, size: 28 })
+                    ],
+                    spacing: { after: 50 }
+                })
+            );
+
+            children.push(
+                new Paragraph({
+                    text: besoin.produitRecommande.type || '',
+                    spacing: { after: 150 }
+                })
+            );
+
+            if (besoin.produitRecommande.avantages?.length > 0) {
+                children.push(
+                    new Paragraph({
+                        text: 'Avantages:',
+                        spacing: { before: 100, after: 50 }
+                    })
+                );
+                besoin.produitRecommande.avantages.forEach(advantage => {
+                    children.push(
+                        new Paragraph({
+                            children: [new TextRun({ text: `✓ ${advantage}`, color: '27AE60' })],
+                            spacing: { after: 40 }
+                        })
+                    );
+                });
+            }
+
+            if (besoin.produitRecommande.conditions?.length > 0) {
+                children.push(
+                    new Paragraph({
+                        text: 'Conditions:',
+                        spacing: { before: 100, after: 50 }
+                    })
+                );
+                besoin.produitRecommande.conditions.forEach(condition => {
+                    children.push(
+                        new Paragraph({
+                            children: [new TextRun({ text: `• ${condition}` })],
+                            spacing: { after: 40 }
+                        })
+                    );
+                });
+            }
+
+            if (besoin.produitRecommande.alternative) {
+                children.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({ text: 'Alternative: ', bold: true }),
+                            new TextRun({ text: `${besoin.produitRecommande.alternative.nom} - ${besoin.produitRecommande.alternative.raison}`, italics: true, color: '666666' })
+                        ],
+                        spacing: { before: 100, after: 100 }
+                    })
+                );
+            }
+        }
+
+        // Alerts
+        if (besoin.alertes?.length > 0) {
+            children.push(
+                new Paragraph({
+                    text: 'Alertes:',
+                    heading: HeadingLevel.HEADING_2,
+                    spacing: { before: 200, after: 100 }
+                })
+            );
+            besoin.alertes.forEach(alerte => {
+                children.push(
+                    new Paragraph({
+                        children: [new TextRun({ text: `⚠ ${alerte}`, color: 'E74C3C' })],
+                        spacing: { after: 50 }
+                    })
+                );
+            });
+        }
+
+        // Structuring recommendations
+        if (besoin.recommandationsStructuration?.length > 0) {
+            children.push(
+                new Paragraph({
+                    text: 'Recommandations de structuration:',
+                    heading: HeadingLevel.HEADING_2,
+                    spacing: { before: 200, after: 100 }
+                })
+            );
+            besoin.recommandationsStructuration.forEach(rec => {
+                children.push(
+                    new Paragraph({
+                        children: [new TextRun({ text: `→ ${rec}` })],
+                        spacing: { after: 50 }
+                    })
+                );
             });
         }
     }
