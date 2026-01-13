@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { compressFiles, isImageFile } from '@/lib/imageCompression';
 
 export type AnalysisStep =
     | 'idle'
+    | 'compressing'
     | 'uploading'
     | 'analyzing'
     | 'extracting'
@@ -11,6 +13,15 @@ export type AnalysisStep =
     | 'scoring'
     | 'complete'
     | 'error';
+
+export interface UploadProgress {
+    phase: 'compressing' | 'uploading' | 'analyzing';
+    current: number;
+    total: number;
+    fileName?: string;
+    bytesUploaded?: number;
+    bytesTotal?: number;
+}
 
 export interface ExtractedEntreprise {
     siren?: string;
@@ -143,7 +154,6 @@ function generateDemoData(
     const fileNames = files.map(f => f.name.toLowerCase());
     const documentsDetectes: string[] = [];
 
-    // Detect document types from file names
     if (fileNames.some(f => f.includes('kbis') || f.includes('rcs'))) {
         documentsDetectes.push('Extrait Kbis');
     }
@@ -163,47 +173,29 @@ function generateDemoData(
         documentsDetectes.push('Document PDF');
     }
 
-    // Generate a semi-random seed from file characteristics for variability
     const totalFileSize = files.reduce((acc, f) => acc + f.size, 0);
     const fileNameHash = files.reduce((acc, f) => acc + f.name.charCodeAt(0) + f.name.length, 0);
     const seed = (totalFileSize + fileNameHash + Date.now()) % 1000;
 
-    // Helper for random variation
     const vary = (base: number, variance: number) =>
         Math.round(base + (((seed + base) % 100) / 100 - 0.5) * variance * 2);
 
-    // Company names pool
     const companyNames = [
-        'TECH SOLUTIONS FRANCE',
-        'DIGITAL SERVICES PRO',
-        'INNOVATION CONSULTING',
-        'GREEN ENERGY SYSTEMS',
-        'SMART LOGISTICS SAS',
-        'PREMIUM DISTRIBUTION',
-        'NEXUS TECHNOLOGIES',
-        'ALPHA CONSULTING GROUP',
-        'MERIDIAN SERVICES',
-        'ATLANTIC SOLUTIONS'
+        'TECH SOLUTIONS FRANCE', 'DIGITAL SERVICES PRO', 'INNOVATION CONSULTING',
+        'GREEN ENERGY SYSTEMS', 'SMART LOGISTICS SAS', 'PREMIUM DISTRIBUTION',
+        'NEXUS TECHNOLOGIES', 'ALPHA CONSULTING GROUP', 'MERIDIAN SERVICES', 'ATLANTIC SOLUTIONS'
     ];
     const formeJuridiques = ['SARL', 'SAS', 'SA', 'EURL', 'SNC'];
     const secteurs = [
-        'Programmation informatique',
-        'Conseil en gestion',
-        'Commerce de gros',
-        'Services aux entreprises',
-        'Restauration',
-        'Transport routier',
-        'Construction',
-        'Immobilier'
+        'Programmation informatique', 'Conseil en gestion', 'Commerce de gros',
+        'Services aux entreprises', 'Restauration', 'Transport routier', 'Construction', 'Immobilier'
     ];
     const noms = ['MARTIN', 'BERNARD', 'DUBOIS', 'THOMAS', 'ROBERT', 'PETIT', 'DURAND', 'LEROY', 'MOREAU', 'SIMON'];
     const prenoms = ['Pierre', 'Jean', 'Marie', 'Sophie', 'Nicolas', 'Isabelle', 'Laurent', 'Nathalie', 'François', 'Céline'];
 
-    // Extract SIREN from SIRET if provided, otherwise generate one based on seed
     const siret = options?.siret || `${String(seed * 100000).padStart(9, '0')}${String(seed % 10000).padStart(5, '0')}`;
     const siren = siret.length >= 9 ? siret.substring(0, 9) : String(seed * 100000).padStart(9, '0');
 
-    // Generate realistic company data based on seed
     const companyIndex = seed % companyNames.length;
     const formeIndex = seed % formeJuridiques.length;
     const secteurIndex = (seed + fileNames.length) % secteurs.length;
@@ -232,7 +224,6 @@ function generateDemoData(
         email: `${prenoms[prenomIndex].toLowerCase()}.${noms[nomIndex].toLowerCase()}@${companyNames[companyIndex].toLowerCase().replace(/ /g, '-').substring(0, 15)}.fr`,
     };
 
-    // Generate 3 years of financial data with variation
     const currentYear = new Date().getFullYear();
     const baseCA = vary(800000, 700000);
     const growth = 0.05 + ((seed % 20) / 100);
@@ -280,7 +271,6 @@ function generateDemoData(
         dureeEnMois: [36, 48, 60, 72, 84][seed % 5],
     };
 
-    // Calculate score based on financial data
     const dernierExercice = finances[finances.length - 1];
     const details: ScoreDetails = {
         solvabilite: vary(70, 25),
@@ -289,7 +279,6 @@ function generateDemoData(
         activite: vary(75, 25),
     };
 
-    // Adjust scores based on calculated ratios
     if (dernierExercice.capitauxPropres && dernierExercice.dettesFinancieres) {
         const ratio = dernierExercice.capitauxPropres /
             (dernierExercice.capitauxPropres + dernierExercice.dettesFinancieres);
@@ -303,7 +292,6 @@ function generateDemoData(
         else if (marge < 0.03) details.rentabilite = Math.max(30, details.rentabilite - 15);
     }
 
-    // Calculate global score
     const global = Math.round(
         details.solvabilite * 0.30 +
         details.rentabilite * 0.30 +
@@ -311,12 +299,10 @@ function generateDemoData(
         details.activite * 0.20
     );
 
-    // Determine recommendation
     let recommandation: 'FAVORABLE' | 'RESERVES' | 'DEFAVORABLE' = 'RESERVES';
     if (global >= 70) recommandation = 'FAVORABLE';
     else if (global < 45) recommandation = 'DEFAVORABLE';
 
-    // Calculate threshold based on EBITDA
     const seuilAccordable = Math.round((dernierExercice.ebitda || 0) * 3);
 
     return {
@@ -338,6 +324,7 @@ function generateDemoData(
 export function useDocumentAnalysis() {
     const [step, setStep] = useState<AnalysisStep>('idle');
     const [progress, setProgress] = useState(0);
+    const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
     const [result, setResult] = useState<AnalysisResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isDemoMode, setIsDemoMode] = useState(false);
@@ -345,6 +332,7 @@ export function useDocumentAnalysis() {
     const reset = useCallback(() => {
         setStep('idle');
         setProgress(0);
+        setUploadProgress(null);
         setResult(null);
         setError(null);
         setIsDemoMode(false);
@@ -356,14 +344,66 @@ export function useDocumentAnalysis() {
     ) => {
         try {
             reset();
+
+            // Phase 1: Compress images
+            const hasImages = files.some(f => isImageFile(f));
+            let processedFiles = files;
+
+            if (hasImages) {
+                setStep('compressing');
+                setProgress(5);
+
+                const originalSize = files.reduce((acc, f) => acc + f.size, 0);
+
+                processedFiles = await compressFiles(files, { maxSizeMB: 2, quality: 0.8 }, (current, total, fileName) => {
+                    setUploadProgress({
+                        phase: 'compressing',
+                        current,
+                        total,
+                        fileName,
+                    });
+                    setProgress(5 + (current / total) * 10);
+                });
+
+                const compressedSize = processedFiles.reduce((acc, f) => acc + f.size, 0);
+                const savings = originalSize - compressedSize;
+                if (savings > 0) {
+                    toast.info(`Images compressées`, {
+                        description: `Taille réduite de ${(savings / 1024 / 1024).toFixed(1)} Mo`,
+                        duration: 3000,
+                    });
+                }
+            }
+
+            // Phase 2: Upload files
             setStep('uploading');
-            setProgress(10);
+            setProgress(15);
+
+            const totalSize = processedFiles.reduce((acc, f) => acc + f.size, 0);
+            setUploadProgress({
+                phase: 'uploading',
+                current: 0,
+                total: processedFiles.length,
+                bytesTotal: totalSize,
+                bytesUploaded: 0,
+            });
 
             // Build form data with files
             const formData = new FormData();
-            for (const file of files) {
+            for (let i = 0; i < processedFiles.length; i++) {
+                const file = processedFiles[i];
                 formData.append('files', file);
+                setUploadProgress({
+                    phase: 'uploading',
+                    current: i + 1,
+                    total: processedFiles.length,
+                    fileName: file.name,
+                    bytesTotal: totalSize,
+                    bytesUploaded: processedFiles.slice(0, i + 1).reduce((acc, f) => acc + f.size, 0),
+                });
+                setProgress(15 + ((i + 1) / processedFiles.length) * 15);
             }
+
             if (options?.siret) {
                 formData.append('siret', options.siret);
             }
@@ -377,14 +417,19 @@ export function useDocumentAnalysis() {
                 formData.append('typeBien', options.typeBien);
             }
 
+            // Phase 3: Analyze
             setStep('analyzing');
-            setProgress(30);
+            setProgress(35);
+            setUploadProgress({
+                phase: 'analyzing',
+                current: 0,
+                total: 4,
+            });
 
             let analysisResult: AnalysisResult;
             let useDemoMode = false;
 
             try {
-                // Try calling the Edge Function
                 const { data, error: fnError } = await supabase.functions.invoke('analyze-documents', {
                     body: formData,
                 });
@@ -395,14 +440,12 @@ export function useDocumentAnalysis() {
 
                 analysisResult = data as AnalysisResult;
             } catch (edgeFnError) {
-                // Fallback to demo mode if Edge Function is not available
                 console.warn('[SmartImport] Edge Function not available, using demo mode:', edgeFnError);
                 useDemoMode = true;
                 setIsDemoMode(true);
 
-                // Simulate network delay for realistic UX
                 await new Promise(resolve => setTimeout(resolve, 800));
-                analysisResult = generateDemoData(files, options);
+                analysisResult = generateDemoData(processedFiles, options);
 
                 toast.info('Mode démonstration activé', {
                     description: 'L\'analyse IA simulée est utilisée car le service n\'est pas disponible.',
@@ -411,18 +454,21 @@ export function useDocumentAnalysis() {
             }
 
             setStep('extracting');
-            setProgress(50);
+            setProgress(55);
+            setUploadProgress({ phase: 'analyzing', current: 1, total: 4 });
 
-            // Simulate step progression for UX
             await new Promise(resolve => setTimeout(resolve, useDemoMode ? 400 : 500));
             setStep('validating');
             setProgress(70);
+            setUploadProgress({ phase: 'analyzing', current: 2, total: 4 });
 
             await new Promise(resolve => setTimeout(resolve, useDemoMode ? 400 : 500));
             setStep('scoring');
-            setProgress(90);
+            setProgress(85);
+            setUploadProgress({ phase: 'analyzing', current: 3, total: 4 });
 
             await new Promise(resolve => setTimeout(resolve, useDemoMode ? 300 : 300));
+            setUploadProgress({ phase: 'analyzing', current: 4, total: 4 });
 
             if (!analysisResult.success) {
                 throw new Error(analysisResult.erreur || 'Erreur inconnue');
@@ -431,6 +477,7 @@ export function useDocumentAnalysis() {
             setResult(analysisResult);
             setStep('complete');
             setProgress(100);
+            setUploadProgress(null);
             toast.success('Analyse terminée avec succès');
 
             return analysisResult;
@@ -439,6 +486,7 @@ export function useDocumentAnalysis() {
             const message = err instanceof Error ? err.message : 'Erreur lors de l\'analyse';
             setError(message);
             setStep('error');
+            setUploadProgress(null);
             toast.error(message);
             return null;
         }
@@ -447,6 +495,7 @@ export function useDocumentAnalysis() {
     return {
         step,
         progress,
+        uploadProgress,
         result,
         error,
         isDemoMode,

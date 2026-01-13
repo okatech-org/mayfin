@@ -10,27 +10,37 @@ import {
     Sparkles,
     Cpu,
     Clock,
-    Timer
+    Timer,
+    ImageDown,
+    HardDrive
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import type { AnalysisStep } from '@/hooks/useDocumentAnalysis';
+import type { AnalysisStep, UploadProgress } from '@/hooks/useDocumentAnalysis';
 
 interface AIAnalysisProgressProps {
     step: AnalysisStep;
     progress: number;
     error?: string | null;
+    uploadProgress?: UploadProgress | null;
 }
 
 // Main pipeline steps with estimated durations in seconds
 const PIPELINE_STEPS = [
     { 
+        id: 'compressing', 
+        label: 'Compression des images', 
+        icon: ImageDown,
+        description: 'Optimisation de la taille des fichiers...',
+        estimatedSeconds: 3
+    },
+    { 
         id: 'uploading', 
         label: 'Upload des documents', 
         icon: Upload,
-        description: 'Préparation des fichiers...',
-        estimatedSeconds: 3
+        description: 'Envoi des fichiers au serveur...',
+        estimatedSeconds: 5
     },
     { 
         id: 'analyzing', 
@@ -76,6 +86,13 @@ const PIPELINE_STEPS = [
         estimatedSeconds: 0
     },
 ];
+
+// Format bytes to readable size
+function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} o`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} Mo`;
+}
 
 // Calculate total estimated time
 const TOTAL_ESTIMATED_SECONDS = PIPELINE_STEPS.reduce((acc, step) => acc + step.estimatedSeconds, 0);
@@ -283,7 +300,7 @@ function TimeDisplay({
     );
 }
 
-export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgressProps) {
+export function AIAnalysisProgress({ step, progress, error, uploadProgress }: AIAnalysisProgressProps) {
     const currentIndex = getStepIndex(step);
     const isComplete = step === 'complete';
     const isError = step === 'error';
@@ -302,6 +319,29 @@ export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgress
     }, [step, startTime]);
     
     const { elapsedSeconds, estimatedRemaining } = useTimeEstimation(step, startTime);
+
+    // Generate detailed description based on upload progress
+    const getDetailedDescription = () => {
+        if (!uploadProgress) return currentStepConfig?.description || '';
+        
+        if (uploadProgress.phase === 'compressing') {
+            return `Compression de ${uploadProgress.fileName || 'image'}... (${uploadProgress.current}/${uploadProgress.total})`;
+        }
+        
+        if (uploadProgress.phase === 'uploading') {
+            const bytesInfo = uploadProgress.bytesTotal 
+                ? ` • ${formatBytes(uploadProgress.bytesUploaded || 0)} / ${formatBytes(uploadProgress.bytesTotal)}`
+                : '';
+            return `Envoi de ${uploadProgress.fileName || 'fichier'}... (${uploadProgress.current}/${uploadProgress.total})${bytesInfo}`;
+        }
+        
+        if (uploadProgress.phase === 'analyzing') {
+            const phases = ['OCR', 'Analyse financière', 'Recherche sectorielle', 'Synthèse'];
+            return phases[uploadProgress.current - 1] || currentStepConfig?.description || '';
+        }
+        
+        return currentStepConfig?.description || '';
+    };
 
     if (step === 'idle') return null;
 
@@ -327,7 +367,7 @@ export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgress
                         {currentStepConfig && !isComplete && !isError && (
                             <p className="text-sm text-muted-foreground">
                                 <TypewriterText 
-                                    text={currentStepConfig.description} 
+                                    text={getDetailedDescription()} 
                                     isActive={true}
                                 />
                             </p>
@@ -374,8 +414,39 @@ export function AIAnalysisProgress({ step, progress, error }: AIAnalysisProgress
                     </span>
                 </div>
                 
+                {/* File upload progress details */}
+                {uploadProgress && (uploadProgress.phase === 'compressing' || uploadProgress.phase === 'uploading') && (
+                    <div className="mt-3 p-3 rounded-lg bg-background/50 border">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 text-sm">
+                                {uploadProgress.phase === 'compressing' ? (
+                                    <ImageDown className="h-4 w-4 text-primary animate-pulse" />
+                                ) : (
+                                    <HardDrive className="h-4 w-4 text-primary animate-pulse" />
+                                )}
+                                <span className="font-medium truncate max-w-[200px]">
+                                    {uploadProgress.fileName || 'Fichier'}
+                                </span>
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                                {uploadProgress.current}/{uploadProgress.total}
+                            </Badge>
+                        </div>
+                        <Progress 
+                            value={(uploadProgress.current / uploadProgress.total) * 100} 
+                            className="h-1.5" 
+                        />
+                        {uploadProgress.bytesTotal && (
+                            <div className="flex justify-between mt-1.5 text-xs text-muted-foreground">
+                                <span>{formatBytes(uploadProgress.bytesUploaded || 0)}</span>
+                                <span>{formatBytes(uploadProgress.bytesTotal)}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+                
                 {/* Step time indicators */}
-                {!isComplete && !isError && (
+                {!isComplete && !isError && !uploadProgress && (
                     <div className="flex justify-between mt-2 text-xs text-muted-foreground">
                         <span>Étape {currentIndex + 1}/{PIPELINE_STEPS.length - 1}</span>
                         <span>~{PIPELINE_STEPS[currentIndex]?.estimatedSeconds || 0}s cette étape</span>
