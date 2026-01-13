@@ -18,18 +18,23 @@ import {
     Target,
     BookOpen,
     Eye,
-    RefreshCw
+    RefreshCw,
+    Save,
+    FileType
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Separator } from '@/components/ui/separator';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { AnalysisResult, AnalyseSectorielle } from '@/hooks/useDocumentAnalysis';
 import { generateSmartAnalysisPDF } from '@/lib/rapport-pdf-generator';
+import { generateSmartAnalysisWord } from '@/lib/rapport-word-generator';
 import { toast } from 'sonner';
 import { PDFPreviewModal } from './PDFPreviewModal';
 import { supabase } from '@/integrations/supabase/client';
+import { useAnalyseHistory } from '@/hooks/useAnalyseHistory';
 
 interface AnalysisResultCardProps {
     result: AnalysisResult;
@@ -162,22 +167,48 @@ function formatCurrency(value?: number): string {
 export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCreating, isDemoMode }: AnalysisResultCardProps) {
     const { data, score, recommandation, seuilAccordable, modelsUsed, analyseSectorielle, syntheseNarrative } = result;
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isDownloadingWord, setIsDownloadingWord] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [isRefreshingSector, setIsRefreshingSector] = useState(false);
     const [sectorData, setSectorData] = useState<AnalyseSectorielle | undefined>(analyseSectorielle);
+    const { saveToHistory, isSaving } = useAnalyseHistory();
 
     if (!data || !score) return null;
 
     const handleDownloadPDF = () => {
         setIsDownloading(true);
         try {
-            generateSmartAnalysisPDF(result);
+            generateSmartAnalysisPDF(updatedResult);
             toast.success('PDF généré avec succès');
         } catch (error) {
             console.error('Erreur génération PDF:', error);
             toast.error('Erreur lors de la génération du PDF: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
         } finally {
             setIsDownloading(false);
+        }
+    };
+
+    const handleDownloadWord = async () => {
+        setIsDownloadingWord(true);
+        try {
+            await generateSmartAnalysisWord(updatedResult);
+            toast.success('Document Word généré avec succès');
+        } catch (error) {
+            console.error('Erreur génération Word:', error);
+            toast.error('Erreur lors de la génération du Word: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
+        } finally {
+            setIsDownloadingWord(false);
+        }
+    };
+
+    const handleSaveToHistory = async () => {
+        try {
+            await saveToHistory({ 
+                analysisResult: updatedResult,
+                sourceFiles: data.documentsDetectes
+            });
+        } catch (error) {
+            console.error('Erreur sauvegarde:', error);
         }
     };
 
@@ -606,24 +637,42 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
 
                 <Separator className="my-4" />
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                     <Button
                         variant="outline"
-                        className="flex-1"
+                        size="sm"
                         onClick={() => setShowPreview(true)}
                     >
                         <Eye className="h-4 w-4 mr-2" />
-                        Aperçu du rapport
+                        Aperçu
                     </Button>
                     <Button
-                        variant="secondary"
-                        className="flex-1"
-                        onClick={handleDownloadPDF}
-                        disabled={isDownloading}
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSaveToHistory}
+                        disabled={isSaving}
                     >
-                        <Download className="h-4 w-4 mr-2" />
-                        {isDownloading ? 'Génération...' : 'Télécharger PDF'}
+                        <Save className="h-4 w-4 mr-2" />
+                        {isSaving ? 'Sauvegarde...' : 'Historique'}
                     </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="secondary" size="sm" disabled={isDownloading || isDownloadingWord}>
+                                <Download className="h-4 w-4 mr-2" />
+                                Télécharger
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem onClick={handleDownloadPDF} disabled={isDownloading}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                {isDownloading ? 'Génération...' : 'Format PDF'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleDownloadWord} disabled={isDownloadingWord}>
+                                <FileType className="h-4 w-4 mr-2" />
+                                {isDownloadingWord ? 'Génération...' : 'Format Word (.docx)'}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
 
