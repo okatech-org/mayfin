@@ -1,8 +1,7 @@
 // Supabase Edge Function: analyze-documents
-// Analyse documents with Gemini 2.0 Flash for OCR and data extraction
+// Analyse documents with Lovable AI Gateway for OCR and data extraction
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.21.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -229,9 +228,9 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY not configured");
     }
 
     const formData = await req.formData();
@@ -263,28 +262,58 @@ serve(async (req) => {
       );
     }
 
-    // Initialize Gemini
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-
-    // Prepare content parts with images/PDFs
-    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
-      { text: EXTRACTION_PROMPT },
+    // Build content for Lovable AI with images
+    const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+      { type: "text", text: EXTRACTION_PROMPT }
     ];
 
     for (const file of files) {
-      parts.push({
-        inlineData: {
-          mimeType: file.type,
-          data: file.data,
-        },
+      contentParts.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${file.type};base64,${file.data}`
+        }
       });
     }
 
-    // Call Gemini for extraction
-    const result = await model.generateContent(parts);
-    const response = await result.response;
-    const text = response.text();
+    // Call Lovable AI Gateway
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          {
+            role: "user",
+            content: contentParts
+          }
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ success: false, erreur: "Limite de requêtes atteinte, réessayez plus tard." } as AnalysisResult),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 429 }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ success: false, erreur: "Crédits insuffisants pour l'analyse IA." } as AnalysisResult),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 402 }
+        );
+      }
+      const errorText = await response.text();
+      console.error("AI Gateway error:", response.status, errorText);
+      throw new Error(`AI Gateway error: ${response.status}`);
+    }
+
+    const aiResponse = await response.json();
+    const text = aiResponse.choices?.[0]?.message?.content || "";
 
     // Parse JSON response (handle markdown code blocks)
     let jsonStr = text;
@@ -327,10 +356,11 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Error analyzing documents:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'analyse";
     return new Response(
       JSON.stringify({ 
         success: false, 
-        erreur: error.message || "Erreur lors de l'analyse" 
+        erreur: errorMessage
       } as AnalysisResult),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
