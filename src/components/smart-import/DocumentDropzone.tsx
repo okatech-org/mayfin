@@ -153,19 +153,29 @@ export function DocumentDropzone({
                     ou sélectionnez des fichiers
                 </p>
 
-                {/* Hidden file input for general file selection */}
-                <input
-                    id="file-input"
-                    type="file"
-                    multiple
-                    accept={ACCEPTED_TYPES.join(',')}
-                    onChange={handleFileSelect}
-                    disabled={disabled || files.length >= maxFiles}
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                />
-
-                {/* Buttons for mobile */}
+                {/* Buttons for file selection and camera */}
                 <div className="flex flex-wrap justify-center gap-3 mb-4 relative z-10">
+                    <label 
+                        htmlFor="file-input-btn"
+                        className={cn(
+                            "inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer",
+                            "bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border",
+                            (disabled || files.length >= maxFiles) && "opacity-50 cursor-not-allowed"
+                        )}
+                    >
+                        <Upload className="h-4 w-4" />
+                        Sélectionner des fichiers
+                    </label>
+                    <input
+                        id="file-input-btn"
+                        type="file"
+                        multiple
+                        accept={ACCEPTED_TYPES.join(',')}
+                        onChange={handleFileSelect}
+                        disabled={disabled || files.length >= maxFiles}
+                        className="hidden"
+                    />
+                    
                     <label 
                         htmlFor="camera-input"
                         className={cn(
