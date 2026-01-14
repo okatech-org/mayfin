@@ -12,11 +12,13 @@ import {
     Clock,
     Timer,
     ImageDown,
-    HardDrive
+    HardDrive,
+    X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { AnalysisStep, UploadProgress } from '@/hooks/useDocumentAnalysis';
 
 interface AIAnalysisProgressProps {
@@ -24,6 +26,7 @@ interface AIAnalysisProgressProps {
     progress: number;
     error?: string | null;
     uploadProgress?: UploadProgress | null;
+    onCancel?: () => void;
 }
 
 // Main pipeline steps with estimated durations in seconds
@@ -47,16 +50,16 @@ const PIPELINE_STEPS = [
         label: 'Analyse OCR (Gemini)', 
         icon: Search,
         description: 'Extraction visuelle des documents',
-        model: 'Gemini 2.0 Flash',
+        model: 'Gemini 2.5 Flash',
         modelColor: 'bg-blue-500',
         estimatedSeconds: 15
     },
     { 
         id: 'extracting', 
-        label: 'Analyse financière (GPT-4)', 
+        label: 'Analyse financière (GPT-5)', 
         icon: Brain,
         description: 'Évaluation approfondie des données',
-        model: 'GPT-4o',
+        model: 'GPT-5',
         modelColor: 'bg-green-500',
         estimatedSeconds: 12
     },
@@ -71,10 +74,10 @@ const PIPELINE_STEPS = [
     },
     { 
         id: 'scoring', 
-        label: 'Synthèse narrative (Cohere)', 
+        label: 'Synthèse narrative (GPT-5 Mini)', 
         icon: FileText,
         description: 'Génération du rapport',
-        model: 'Cohere Command R+',
+        model: 'GPT-5 Mini',
         modelColor: 'bg-orange-500',
         estimatedSeconds: 8
     },
@@ -300,11 +303,12 @@ function TimeDisplay({
     );
 }
 
-export function AIAnalysisProgress({ step, progress, error, uploadProgress }: AIAnalysisProgressProps) {
+export function AIAnalysisProgress({ step, progress, error, uploadProgress, onCancel }: AIAnalysisProgressProps) {
     const currentIndex = getStepIndex(step);
     const isComplete = step === 'complete';
     const isError = step === 'error';
     const currentStepConfig = PIPELINE_STEPS[currentIndex];
+    const canCancel = !isComplete && !isError && step !== 'idle';
     
     // Track start time
     const [startTime, setStartTime] = useState<number | null>(null);
@@ -381,22 +385,43 @@ export function AIAnalysisProgress({ step, progress, error, uploadProgress }: AI
                     </div>
                     
                     {/* Time estimation - desktop */}
-                    <div className="hidden sm:block">
+                    <div className="hidden sm:flex items-center gap-3">
                         <TimeDisplay 
                             elapsedSeconds={elapsedSeconds} 
                             estimatedRemaining={estimatedRemaining}
                             isComplete={isComplete}
                         />
+                        {canCancel && onCancel && (
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={onCancel}
+                                className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                            >
+                                <X className="h-4 w-4 mr-1" />
+                                Annuler
+                            </Button>
+                        )}
                     </div>
                 </div>
                 
                 {/* Mobile time display */}
-                <div className="sm:hidden mt-3">
+                <div className="sm:hidden mt-3 flex items-center justify-between">
                     <TimeDisplay 
                         elapsedSeconds={elapsedSeconds} 
                         estimatedRemaining={estimatedRemaining}
                         isComplete={isComplete}
                     />
+                    {canCancel && onCancel && (
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={onCancel}
+                            className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
 
                 {/* Neural network animation when processing */}
