@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -40,6 +41,7 @@ import { useAnalyseHistory, type AnalyseHistoryEntry, type ScoreComparison } fro
 import { generateSmartAnalysisPDF } from '@/lib/rapport-pdf-generator';
 import { toast } from 'sonner';
 import type { AnalysisResult } from '@/hooks/useDocumentAnalysis';
+import { AnalysisComparisonModal } from './AnalysisComparisonModal';
 
 interface AnalyseHistoryPanelProps {
     dossierId?: string;
@@ -373,6 +375,9 @@ function HistoryEntryCard({
 }
 
 export function AnalyseHistoryPanel({ dossierId, onSelectAnalysis }: AnalyseHistoryPanelProps) {
+    const [selectedForCompare, setSelectedForCompare] = useState<AnalyseHistoryEntry[]>([]);
+    const [showComparison, setShowComparison] = useState(false);
+    
     const { 
         history, 
         isLoading, 
@@ -384,6 +389,27 @@ export function AnalyseHistoryPanel({ dossierId, onSelectAnalysis }: AnalyseHist
     } = useAnalyseHistory(dossierId);
 
     const latestComparison = getLatestComparison();
+
+    const handleToggleSelect = (entry: AnalyseHistoryEntry) => {
+        if (selectedForCompare.find(e => e.id === entry.id)) {
+            setSelectedForCompare(selectedForCompare.filter(e => e.id !== entry.id));
+        } else if (selectedForCompare.length < 2) {
+            setSelectedForCompare([...selectedForCompare, entry]);
+        } else {
+            // Replace first selection
+            setSelectedForCompare([selectedForCompare[1], entry]);
+        }
+    };
+
+    const handleCompare = () => {
+        if (selectedForCompare.length === 2) {
+            setShowComparison(true);
+        }
+    };
+
+    const handleCloseComparison = () => {
+        setShowComparison(false);
+    };
 
     if (isLoading) {
         return (
@@ -422,43 +448,81 @@ export function AnalyseHistoryPanel({ dossierId, onSelectAnalysis }: AnalyseHist
     }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <History className="h-5 w-5" />
-                    Historique des analyses
-                    <Badge variant="secondary">{history.length}</Badge>
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                {/* Comparison section */}
-                {latestComparison && latestComparison.previous && (
-                    <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                        <p className="text-sm font-medium text-primary mb-3 flex items-center gap-2">
-                            <GitCompare className="h-4 w-4" />
-                            Comparaison avec la version précédente
+        <>
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                            <History className="h-5 w-5" />
+                            Historique des analyses
+                            <Badge variant="secondary">{history.length}</Badge>
+                        </CardTitle>
+                        {history.length >= 2 && (
+                            <Button
+                                variant={selectedForCompare.length === 2 ? "default" : "outline"}
+                                size="sm"
+                                onClick={handleCompare}
+                                disabled={selectedForCompare.length !== 2}
+                            >
+                                <GitCompare className="h-4 w-4 mr-2" />
+                                Comparer ({selectedForCompare.length}/2)
+                            </Button>
+                        )}
+                    </div>
+                    {selectedForCompare.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                            Sélectionnez 2 analyses pour les comparer côte à côte
                         </p>
-                        <ComparisonCard comparison={latestComparison} />
-                    </div>
-                )}
+                    )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {/* Comparison section */}
+                    {latestComparison && latestComparison.previous && (
+                        <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                            <p className="text-sm font-medium text-primary mb-3 flex items-center gap-2">
+                                <GitCompare className="h-4 w-4" />
+                                Comparaison avec la version précédente
+                            </p>
+                            <ComparisonCard comparison={latestComparison} />
+                        </div>
+                    )}
 
-                {/* History list */}
-                <ScrollArea className="h-[400px] pr-4">
-                    <div className="space-y-3">
-                        {history.map((entry) => (
-                            <HistoryEntryCard
-                                key={entry.id}
-                                entry={entry}
-                                onDelete={() => deleteFromHistory(entry.id)}
-                                onSelect={onSelectAnalysis ? () => onSelectAnalysis(entry) : undefined}
-                                onUpdateNotes={(notes) => updateNotes({ id: entry.id, notes })}
-                                isDeleting={isDeleting}
-                                isUpdatingNotes={isUpdatingNotes}
-                            />
-                        ))}
-                    </div>
-                </ScrollArea>
-            </CardContent>
-        </Card>
+                    {/* History list */}
+                    <ScrollArea className="h-[400px] pr-4">
+                        <div className="space-y-3">
+                            {history.map((entry) => (
+                                <div key={entry.id} className="relative">
+                                    {history.length >= 2 && (
+                                        <div className="absolute top-3 right-14 z-10">
+                                            <Checkbox
+                                                checked={!!selectedForCompare.find(e => e.id === entry.id)}
+                                                onCheckedChange={() => handleToggleSelect(entry)}
+                                                className="bg-background border-2"
+                                            />
+                                        </div>
+                                    )}
+                                    <HistoryEntryCard
+                                        entry={entry}
+                                        onDelete={() => deleteFromHistory(entry.id)}
+                                        onSelect={onSelectAnalysis ? () => onSelectAnalysis(entry) : undefined}
+                                        onUpdateNotes={(notes) => updateNotes({ id: entry.id, notes })}
+                                        isDeleting={isDeleting}
+                                        isUpdatingNotes={isUpdatingNotes}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                </CardContent>
+            </Card>
+
+            {/* Comparison Modal */}
+            <AnalysisComparisonModal
+                isOpen={showComparison}
+                onClose={handleCloseComparison}
+                analysis1={selectedForCompare[0] || null}
+                analysis2={selectedForCompare[1] || null}
+            />
+        </>
     );
 }

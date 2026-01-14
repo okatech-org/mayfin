@@ -353,7 +353,14 @@ export function useDocumentAnalysis() {
 
     const analyzeDocuments = useCallback(async (
         files: File[],
-        options?: { siret?: string; montantDemande?: number; apportClient?: number; typeBien?: string; disableCompression?: boolean }
+        options?: { 
+            siret?: string; 
+            montantDemande?: number; 
+            apportClient?: number; 
+            typesBien?: string[]; 
+            contextesDossier?: string[];
+            disableCompression?: boolean;
+        }
     ) => {
         try {
             reset();
@@ -428,8 +435,11 @@ export function useDocumentAnalysis() {
             if (options?.apportClient) {
                 formData.append('apportClient', options.apportClient.toString());
             }
-            if (options?.typeBien) {
-                formData.append('typeBien', options.typeBien);
+            if (options?.typesBien && options.typesBien.length > 0) {
+                formData.append('typesBien', JSON.stringify(options.typesBien));
+            }
+            if (options?.contextesDossier && options.contextesDossier.length > 0) {
+                formData.append('contextesDossier', JSON.stringify(options.contextesDossier));
             }
 
             // Phase 3: Analyze

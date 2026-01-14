@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileQuestion, ArrowRight, Car, Laptop, Building, Coins, Wrench, Package, History, Settings2, ImageOff, ChevronUp, ChevronDown, Save, StickyNote } from 'lucide-react';
+import { Sparkles, FileQuestion, ArrowRight, Car, Laptop, Building, Coins, Wrench, Package, History, Settings2, ImageOff, ChevronUp, ChevronDown, Save, StickyNote, Plus, X } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
     Dialog,
@@ -28,6 +30,7 @@ import { useCreateDossier } from '@/hooks/useDossiers';
 import { toast } from 'sonner';
 
 type TypeBien = 'vehicule' | 'materiel' | 'immobilier' | 'informatique' | 'bfr' | 'autre';
+type ContexteDossier = 'entreprise_existante' | 'creation_entreprise' | 'reprise_activite';
 
 const TYPE_BIEN_OPTIONS: { value: TypeBien; label: string; icon: typeof Car }[] = [
     { value: 'vehicule', label: 'Véhicule', icon: Car },
@@ -38,13 +41,20 @@ const TYPE_BIEN_OPTIONS: { value: TypeBien; label: string; icon: typeof Car }[] 
     { value: 'autre', label: 'Autre', icon: Package },
 ];
 
+const CONTEXTE_DOSSIER_OPTIONS: { value: ContexteDossier; label: string; description: string }[] = [
+    { value: 'entreprise_existante', label: 'Entreprise existante', description: 'Société déjà immatriculée' },
+    { value: 'creation_entreprise', label: 'Création d\'entreprise', description: 'Projet de création' },
+    { value: 'reprise_activite', label: 'Reprise d\'activité', description: 'Rachat ou transmission' },
+];
+
 export default function SmartImportPage() {
     const navigate = useNavigate();
     const [files, setFiles] = useState<File[]>([]);
     const [siret, setSiret] = useState('');
     const [montantDemande, setMontantDemande] = useState('');
     const [apportClient, setApportClient] = useState('');
-    const [typeBien, setTypeBien] = useState<TypeBien | ''>('');
+    const [typesBien, setTypesBien] = useState<TypeBien[]>([]);
+    const [contextesDossier, setContextesDossier] = useState<ContexteDossier[]>([]);
     const [disableCompression, setDisableCompression] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
@@ -67,7 +77,8 @@ export default function SmartImportPage() {
             siret: siret || undefined,
             montantDemande: montantDemande ? parseFloat(montantDemande) : undefined,
             apportClient: apportClient ? parseFloat(apportClient) : undefined,
-            typeBien: typeBien || undefined,
+            typesBien: typesBien.length > 0 ? typesBien : undefined,
+            contextesDossier: contextesDossier.length > 0 ? contextesDossier : undefined,
             disableCompression,
         });
 
@@ -77,7 +88,25 @@ export default function SmartImportPage() {
             setPendingSourceFiles(files.map(f => f.name));
             setShowNotesDialog(true);
         }
-    }, [files, siret, montantDemande, apportClient, typeBien, disableCompression, analyzeDocuments]);
+    }, [files, siret, montantDemande, apportClient, typesBien, contextesDossier, disableCompression, analyzeDocuments]);
+
+    const handleAddTypeBien = (type: TypeBien) => {
+        if (!typesBien.includes(type)) {
+            setTypesBien([...typesBien, type]);
+        }
+    };
+
+    const handleRemoveTypeBien = (type: TypeBien) => {
+        setTypesBien(typesBien.filter(t => t !== type));
+    };
+
+    const handleToggleContexte = (contexte: ContexteDossier) => {
+        if (contextesDossier.includes(contexte)) {
+            setContextesDossier(contextesDossier.filter(c => c !== contexte));
+        } else {
+            setContextesDossier([...contextesDossier, contexte]);
+        }
+    };
 
     const handleSaveToHistory = useCallback(async (withNotes: boolean) => {
         if (!pendingAnalysisResult) return;
@@ -167,7 +196,8 @@ export default function SmartImportPage() {
         setSiret('');
         setMontantDemande('');
         setApportClient('');
-        setTypeBien('');
+        setTypesBien([]);
+        setContextesDossier([]);
         // Keep compression setting as user preference
     };
 
@@ -268,17 +298,43 @@ export default function SmartImportPage() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="typeBien">Type de bien financé</Label>
+                                    <Label>Types de bien financé</Label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {typesBien.map((type) => {
+                                            const option = TYPE_BIEN_OPTIONS.find(o => o.value === type);
+                                            if (!option) return null;
+                                            const Icon = option.icon;
+                                            return (
+                                                <Badge 
+                                                    key={type}
+                                                    variant="secondary" 
+                                                    className="flex items-center gap-1 pr-1"
+                                                >
+                                                    <Icon className="h-3 w-3" />
+                                                    {option.label}
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-4 w-4 p-0 ml-1 hover:bg-destructive/20 rounded-full"
+                                                        onClick={() => handleRemoveTypeBien(type)}
+                                                        disabled={isAnalyzing}
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </Button>
+                                                </Badge>
+                                            );
+                                        })}
+                                    </div>
                                     <Select 
-                                        value={typeBien} 
-                                        onValueChange={(v) => setTypeBien(v as TypeBien)}
+                                        value="" 
+                                        onValueChange={(v) => handleAddTypeBien(v as TypeBien)}
                                         disabled={isAnalyzing}
                                     >
-                                        <SelectTrigger id="typeBien">
-                                            <SelectValue placeholder="Sélectionner le type de bien" />
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Ajouter un type de bien" />
                                         </SelectTrigger>
                                         <SelectContent className="bg-background border">
-                                            {TYPE_BIEN_OPTIONS.map((option) => {
+                                            {TYPE_BIEN_OPTIONS.filter(o => !typesBien.includes(o.value)).map((option) => {
                                                 const Icon = option.icon;
                                                 return (
                                                     <SelectItem key={option.value} value={option.value}>
@@ -292,8 +348,35 @@ export default function SmartImportPage() {
                                         </SelectContent>
                                     </Select>
                                     <p className="text-xs text-muted-foreground">
-                                        Permet d'orienter vers le produit adapté (ex: Arval pour véhicules)
+                                        Permet d'orienter vers les produits adaptés (ex: Arval pour véhicules)
                                     </p>
+                                </div>
+                            </div>
+
+                            {/* Contexte du dossier */}
+                            <div className="mt-4 pt-4 border-t border-dashed">
+                                <Label className="mb-3 block">Contexte du financement</Label>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    {CONTEXTE_DOSSIER_OPTIONS.map((option) => (
+                                        <label
+                                            key={option.value}
+                                            className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                                contextesDossier.includes(option.value) 
+                                                    ? 'bg-primary/10 border-primary' 
+                                                    : 'bg-muted/30 border-border hover:bg-muted/50'
+                                            }`}
+                                        >
+                                            <Checkbox
+                                                checked={contextesDossier.includes(option.value)}
+                                                onCheckedChange={() => handleToggleContexte(option.value)}
+                                                disabled={isAnalyzing}
+                                            />
+                                            <div>
+                                                <p className="text-sm font-medium">{option.label}</p>
+                                                <p className="text-xs text-muted-foreground">{option.description}</p>
+                                            </div>
+                                        </label>
+                                    ))}
                                 </div>
                             </div>
 
@@ -325,17 +408,6 @@ export default function SmartImportPage() {
                                     </div>
                                 </CollapsibleContent>
                             </Collapsible>
-
-                            <div className="mt-4 pt-4 border-t">
-                                <p className="text-sm text-muted-foreground mb-2">
-                                    📋 <span className="font-medium">Types de dossiers acceptés :</span>
-                                </p>
-                                <div className="flex flex-wrap gap-2 text-xs">
-                                    <span className="px-2 py-1 bg-primary/10 text-primary rounded-md">Entreprise existante</span>
-                                    <span className="px-2 py-1 bg-amber-500/10 text-amber-600 rounded-md">Création d'entreprise</span>
-                                    <span className="px-2 py-1 bg-muted text-muted-foreground rounded-md">Reprise d'activité</span>
-                                </div>
-                            </div>
                         </div>
 
                         {/* Action buttons */}
