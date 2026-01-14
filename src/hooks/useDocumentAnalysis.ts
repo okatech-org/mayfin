@@ -517,6 +517,15 @@ export function useDocumentAnalysis() {
         }
     }, [reset]);
 
+    // Load a result from history (for reload functionality)
+    const loadFromHistory = useCallback((analysisResult: AnalysisResult) => {
+        setResult(analysisResult);
+        setStep('complete');
+        setProgress(100);
+        setError(null);
+        setIsDemoMode(false);
+    }, []);
+
     return {
         step,
         progress,
@@ -529,5 +538,6 @@ export function useDocumentAnalysis() {
         analyzeDocuments,
         reset,
         cancel,
+        loadFromHistory,
     };
 }

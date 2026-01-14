@@ -25,7 +25,7 @@ import { AIAnalysisProgress } from '@/components/smart-import/AIAnalysisProgress
 import { AnalysisResultCard } from '@/components/smart-import/AnalysisResultCard';
 import { AnalyseHistoryPanel } from '@/components/smart-import/AnalyseHistoryPanel';
 import { useDocumentAnalysis, type AnalysisResult } from '@/hooks/useDocumentAnalysis';
-import { useAnalyseHistory } from '@/hooks/useAnalyseHistory';
+import { useAnalyseHistory, type AnalyseHistoryEntry } from '@/hooks/useAnalyseHistory';
 import { useCreateDossier } from '@/hooks/useDossiers';
 import { toast } from 'sonner';
 
@@ -69,7 +69,7 @@ export default function SmartImportPage() {
     const [pendingAnalysisResult, setPendingAnalysisResult] = useState<AnalysisResult | null>(null);
     const [pendingSourceFiles, setPendingSourceFiles] = useState<string[]>([]);
 
-    const { step, progress, uploadProgress, result, error, isAnalyzing, isDemoMode, analyzeDocuments, reset, cancel } = useDocumentAnalysis();
+    const { step, progress, uploadProgress, result, error, isAnalyzing, isDemoMode, analyzeDocuments, reset, cancel, loadFromHistory } = useDocumentAnalysis();
     const { saveToHistory, isSaving } = useAnalyseHistory();
     const createDossier = useCreateDossier();
 
@@ -216,6 +216,34 @@ export default function SmartImportPage() {
         setContextesDossier([]);
         // Keep compression setting as user preference
     };
+
+    const handleReloadFromHistory = useCallback((entry: AnalyseHistoryEntry) => {
+        // Reconstruct AnalysisResult from history entry
+        const extractedData = entry.extracted_data as unknown as AnalysisResult['data'];
+        
+        const analysisResult: AnalysisResult = {
+            success: true,
+            data: extractedData,
+            score: {
+                global: entry.score_global,
+                details: {
+                    solvabilite: entry.score_solvabilite || 0,
+                    rentabilite: entry.score_rentabilite || 0,
+                    structure: entry.score_structure || 0,
+                    activite: entry.score_activite || 0,
+                }
+            },
+            recommandation: entry.recommandation as AnalysisResult['recommandation'],
+            seuilAccordable: entry.seuil_accordable || undefined,
+            analyseSectorielle: entry.analyse_sectorielle as unknown as AnalysisResult['analyseSectorielle'],
+            syntheseNarrative: entry.synthese_narrative as unknown as AnalysisResult['syntheseNarrative'],
+            modelsUsed: entry.models_used || [],
+        };
+
+        loadFromHistory(analysisResult);
+        setShowHistory(false);
+        toast.success('Analyse rechargée depuis l\'historique');
+    }, [loadFromHistory]);
 
     const showForm = step === 'idle' || step === 'error';
     const showProgress = isAnalyzing;
@@ -479,7 +507,7 @@ export default function SmartImportPage() {
                         {/* History panel */}
                         {showHistory && (
                             <div className="mt-6">
-                                <AnalyseHistoryPanel />
+                                <AnalyseHistoryPanel onReloadAnalysis={handleReloadFromHistory} />
                             </div>
                         )}
                     </div>
