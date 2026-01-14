@@ -373,7 +373,7 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
                     <div className="flex items-center gap-2 mb-4">
                         <Lightbulb className="h-5 w-5 text-amber-500" />
                         <span className="font-semibold text-foreground">Synthèse IA</span>
-                        <Badge variant="outline" className="text-xs">Cohere</Badge>
+                        <Badge variant="outline" className="text-xs">GPT-5 Mini</Badge>
                     </div>
 
                     {syntheseNarrative.resumeExecutif && (
