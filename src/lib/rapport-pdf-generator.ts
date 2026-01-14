@@ -1197,14 +1197,24 @@ export function generateSmartAnalysisPDF(
     const totalPages = doc.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
+        
+        // Footer line
+        doc.setDrawColor(200, 200, 200);
+        doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+        
+        // Footer text
         doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
         doc.setTextColor(128, 128, 128);
-        doc.text(
-            `Page ${i}/${totalPages} • Généré le ${formatDate()} • Document confidentiel`,
-            pageWidth / 2,
-            pageHeight - 8,
-            { align: 'center' }
-        );
+        
+        // Left: Document confidentiel - MayFin
+        doc.text('Document confidentiel - MayFin', margin, pageHeight - 7);
+        
+        // Center: Date de génération
+        doc.text(`Généré le ${formatDate()}`, pageWidth / 2, pageHeight - 7, { align: 'center' });
+        
+        // Right: Page number
+        doc.text(`Page ${i}/${totalPages}`, pageWidth - margin, pageHeight - 7, { align: 'right' });
     }
 
     // Save
