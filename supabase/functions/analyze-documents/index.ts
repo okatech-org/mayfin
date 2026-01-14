@@ -162,6 +162,12 @@ interface ExtractedData {
     apportClient?: number;
     typeInvestissement?: string;
     descriptionBien?: string;
+    descriptionProjet?: string;
+  };
+  projet?: {
+    descriptionProjet?: string;
+    objectifs?: string[];
+    contexte?: string;
   };
   documentsDetectes: string[];
   confianceExtraction: number;
@@ -291,7 +297,13 @@ Pour chaque exercice comptable :
 - Apport du client (montant en euros si mentionné)
 - Justification du besoin
 
-5. DOCUMENTS DÉTECTÉS :
+5. PROJET ET CONTEXTE (TRÈS IMPORTANT - extraire même si implicite) :
+- Description complète du projet de financement
+- Objectifs du projet (croissance, renouvellement, création, diversification, etc.)
+- Contexte business (pourquoi ce financement maintenant, situation de l'entreprise)
+- Tout texte descriptif expliquant le besoin, le projet ou la demande
+
+6. DOCUMENTS DÉTECTÉS :
 - Liste exhaustive des types de documents identifiés
 
 RÈGLES IMPORTANTES :
@@ -312,7 +324,13 @@ RÉPONDS UNIQUEMENT EN JSON avec cette structure :
     "dureeEnMois": number,
     "apportClient": number ou null,
     "typeInvestissement": "vehicule" | "materiel" | "immobilier" | "bfr" | "informatique" | "autre",
-    "descriptionBien": string ou null
+    "descriptionBien": string ou null,
+    "descriptionProjet": string ou null (description complète du projet de financement)
+  },
+  "projet": {
+    "descriptionProjet": string (résumé narratif complet du projet, contexte et objectifs - OBLIGATOIRE),
+    "objectifs": [string] (liste des objectifs identifiés),
+    "contexte": string (contexte business et situation de l'entreprise)
   },
   "documentsDetectes": [...],
   "confianceExtraction": 0.0 à 1.0

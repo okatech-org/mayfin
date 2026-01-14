@@ -161,7 +161,7 @@ export default function SmartImportPage() {
             const result = await response.json();
 
             if (result.success && result.data) {
-                const { entreprise, financement } = result.data;
+                const { entreprise, financement, projet } = result.data;
                 let fieldsUpdated = 0;
 
                 // Auto-fill SIRET if found and empty
@@ -189,8 +189,14 @@ export default function SmartImportPage() {
                 if (typesBien.length === 0) {
                     const detectedTypes: TypeBienItem[] = [];
                     const objetLower = (financement?.objetFinancement || '').toLowerCase();
-                    const descriptionLower = (financement?.descriptionProjet || '').toLowerCase();
-                    const combinedText = `${objetLower} ${descriptionLower}`;
+                    const descriptionBienLower = (financement?.descriptionBien || '').toLowerCase();
+                    const descriptionProjetFinancement = (financement?.descriptionProjet || '').toLowerCase();
+                    const descriptionProjetDetails = (projet?.descriptionProjet || '').toLowerCase();
+                    const contexteProjet = (projet?.contexte || '').toLowerCase();
+                    const objectifs = (projet?.objectifs || []).join(' ').toLowerCase();
+                    
+                    // Combine all text sources for comprehensive detection
+                    const combinedText = `${objetLower} ${descriptionBienLower} ${descriptionProjetFinancement} ${descriptionProjetDetails} ${contexteProjet} ${objectifs}`;
                     
                     // Detect vehicle-related keywords
                     if (/v[ée]hicule|voiture|camion|utilitaire|auto|flotte|transport|tracteur|remorque/.test(combinedText)) {
@@ -242,9 +248,14 @@ export default function SmartImportPage() {
                     const detectedContexts: ContexteDossier[] = [];
                     const hasFinancialHistory = result.data.finances?.annees && result.data.finances.annees.length > 0;
                     const objetLower = (financement?.objetFinancement || '').toLowerCase();
-                    const descriptionLower = (financement?.descriptionProjet || '').toLowerCase();
+                    const descriptionProjetFinancement = (financement?.descriptionProjet || '').toLowerCase();
+                    const descriptionProjetDetails = (projet?.descriptionProjet || '').toLowerCase();
+                    const contexteProjet = (projet?.contexte || '').toLowerCase();
+                    const objectifs = (projet?.objectifs || []).join(' ').toLowerCase();
                     const raisonSocialeLower = (entreprise?.raisonSociale || '').toLowerCase();
-                    const combinedText = `${objetLower} ${descriptionLower} ${raisonSocialeLower}`;
+                    
+                    // Combine all text sources for comprehensive detection
+                    const combinedText = `${objetLower} ${descriptionProjetFinancement} ${descriptionProjetDetails} ${contexteProjet} ${objectifs} ${raisonSocialeLower}`;
                     
                     // Detect franchise keywords
                     if (/franchise|franchis[ée]|r[ée]seau|enseigne|master franchise|concept|licence de marque/.test(combinedText)) {
