@@ -450,19 +450,43 @@ export function generateSmartAnalysisPDF(
 
     // MayFin branded header stripe
     doc.setFillColor(...MAYFIN_COLORS.green);
-    doc.rect(0, 0, pageWidth, 8, 'F');
+    doc.rect(0, 0, pageWidth, 6, 'F');
     
-    // Logo text
-    doc.setFontSize(12);
+    // Draw MayFin logo with 3 colored squares
+    const logoX = margin;
+    const logoY = 12;
+    const squareSize = 8;
+    const squareGap = 2;
+    const squareRadius = 1.5;
+    
+    // Green square
+    doc.setFillColor(76, 175, 80); // #4CAF50
+    doc.roundedRect(logoX, logoY, squareSize, squareSize, squareRadius, squareRadius, 'F');
+    
+    // Yellow square
+    doc.setFillColor(255, 193, 7); // #FFC107
+    doc.roundedRect(logoX + squareSize + squareGap, logoY, squareSize, squareSize, squareRadius, squareRadius, 'F');
+    
+    // Blue square (smaller)
+    doc.setFillColor(33, 100, 175); // #2164AF
+    doc.roundedRect(logoX + 2 * (squareSize + squareGap), logoY + 2, squareSize - 2, squareSize - 2, squareRadius, squareRadius, 'F');
+    
+    // MAYFIN text below squares
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...MAYFIN_COLORS.green);
-    doc.text('MAYFIN', margin, 18);
+    doc.setTextColor(0, 115, 65); // MAY in green
+    doc.text('MAY', logoX, logoY + squareSize + 8);
+    const mayWidth = doc.getTextWidth('MAY');
+    doc.setTextColor(33, 100, 175); // FIN in blue
+    doc.text('FIN', logoX + mayWidth, logoY + squareSize + 8);
+    
+    // Confidential text
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MAYFIN_COLORS.darkGrey);
-    doc.text('Analyse de Financement - Document Confidentiel', margin, 22);
+    doc.text('Analyse de Financement - Document Confidentiel', pageWidth - margin, logoY + squareSize + 8, { align: 'right' });
     
-    y = 30;
+    y = 38;
 
     // Title box with MayFin green
     doc.setFillColor(...MAYFIN_COLORS.green);
