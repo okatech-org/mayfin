@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Upload, FileText, X, FileSpreadsheet, Image } from 'lucide-react';
+import { Upload, FileText, X, FileSpreadsheet, Image, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -125,14 +125,25 @@ export function DocumentDropzone({
                     disabled && 'opacity-50 cursor-not-allowed bg-muted/30'
                 )}
             >
-                <div className={cn(
-                    'flex h-16 w-16 items-center justify-center rounded-full mb-4 transition-colors',
-                    isDragOver ? 'bg-primary/20' : 'bg-muted'
-                )}>
-                    <Upload className={cn(
-                        'h-8 w-8 transition-colors',
-                        isDragOver ? 'text-primary' : 'text-muted-foreground'
-                    )} />
+                <div className="flex items-center gap-3 mb-4">
+                    <div className={cn(
+                        'flex h-14 w-14 items-center justify-center rounded-full transition-colors',
+                        isDragOver ? 'bg-primary/20' : 'bg-muted'
+                    )}>
+                        <Upload className={cn(
+                            'h-7 w-7 transition-colors',
+                            isDragOver ? 'text-primary' : 'text-muted-foreground'
+                        )} />
+                    </div>
+                    <div className={cn(
+                        'flex h-14 w-14 items-center justify-center rounded-full transition-colors',
+                        isDragOver ? 'bg-primary/20' : 'bg-muted'
+                    )}>
+                        <Camera className={cn(
+                            'h-7 w-7 transition-colors',
+                            isDragOver ? 'text-primary' : 'text-muted-foreground'
+                        )} />
+                    </div>
                 </div>
 
                 <p className="text-lg font-medium text-foreground mb-1">
@@ -146,6 +157,7 @@ export function DocumentDropzone({
                     type="file"
                     multiple
                     accept={ACCEPTED_TYPES.join(',')}
+                    capture="environment"
                     onChange={handleFileSelect}
                     disabled={disabled || files.length >= maxFiles}
                     className="absolute inset-0 cursor-pointer opacity-0"
