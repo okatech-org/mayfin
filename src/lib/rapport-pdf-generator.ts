@@ -6,6 +6,17 @@ import { SECTIONS, QUESTIONS, DECISION_LABELS, SYNTHESE_LABELS, CONDITIONS_PARTI
 import type { Question } from '@/types/rapport-analyse.types';
 import type { AnalysisResult, AnalyseSectorielle, SyntheseNarrative } from '@/hooks/useDocumentAnalysis';
 
+// MayFin Brand Colors (RGB for jsPDF)
+const MAYFIN_COLORS = {
+    green: [0, 145, 90] as [number, number, number],      // #00915A - Primary brand
+    darkGrey: [44, 44, 44] as [number, number, number],   // #2C2C2C - Text
+    lightGrey: [245, 245, 245] as [number, number, number], // #F5F5F5 - Background
+    blue: [0, 102, 204] as [number, number, number],      // #0066CC - Accent
+    alertRed: [211, 47, 47] as [number, number, number],  // #D32F2F - Danger
+    successGreen: [56, 142, 60] as [number, number, number], // #388E3C - Success
+    warningOrange: [245, 124, 0] as [number, number, number], // #F57C00 - Warning
+};
+
 // Helper to get final Y position after autoTable
 const getAutoTableFinalY = (doc: jsPDF): number => {
     return (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 0;
@@ -21,6 +32,35 @@ const formatNumber = (value: number | null | undefined): string => {
 const formatCurrencySpaced = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return '-';
     return `${formatNumber(Math.round(value))} €`;
+};
+
+// Format percentage with French comma
+const formatPercentage = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return '-';
+    return `${value.toFixed(2).replace('.', ',')} %`;
+};
+
+// Get score color based on value
+const getScoreColor = (score: number): [number, number, number] => {
+    if (score >= 70) return MAYFIN_COLORS.successGreen;
+    if (score >= 50) return MAYFIN_COLORS.warningOrange;
+    return MAYFIN_COLORS.alertRed;
+};
+
+// Get ratio status evaluation
+const getRatioStatus = (value: number, threshold: number, higherBetter = true): string => {
+    if (higherBetter) {
+        return value >= threshold ? '✓ Conforme' : '⚠ À améliorer';
+    }
+    return value <= threshold ? '✓ Conforme' : '⚠ Élevé';
+};
+
+// Get DSCR status
+const getDSCRStatus = (dscr: number): string => {
+    if (dscr >= 1.5) return '✓ Excellent';
+    if (dscr >= 1.2) return '✓ Bon';
+    if (dscr >= 1.0) return '⚠ Limite';
+    return '✗ Insuffisant';
 };
 
 /**
@@ -341,8 +381,8 @@ export function generateSmartAnalysisPDF(
         y += size * 0.5;
     };
 
-    // Compact subtitle
-    const addSubtitle = (text: string, color: number[] = [51, 102, 153]) => {
+    // Compact subtitle with MayFin green
+    const addSubtitle = (text: string, color: number[] = MAYFIN_COLORS.green as number[]) => {
         checkPageBreak(10);
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
@@ -405,68 +445,110 @@ export function generateSmartAnalysisPDF(
     const secteur = analysisResult.analyseSectorielle;
     const besoin = analysisResult.besoinAnalyse;
 
-    // ============ PAGE 1: COVER + SCORING ============
-    y = 15;
+    // ============ PAGE 1: COVER + SCORING (MayFin Branded) ============
+    y = 10;
 
-    // Compact header
-    doc.setFillColor(51, 102, 153);
-    doc.roundedRect(margin, y, contentWidth, 18, 2, 2, 'F');
+    // MayFin branded header stripe
+    doc.setFillColor(...MAYFIN_COLORS.green);
+    doc.rect(0, 0, pageWidth, 8, 'F');
+    
+    // Logo text
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...MAYFIN_COLORS.green);
+    doc.text('MAYFIN', margin, 18);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...MAYFIN_COLORS.darkGrey);
+    doc.text('Analyse de Financement - Document Confidentiel', margin, 22);
+    
+    y = 30;
+
+    // Title box with MayFin green
+    doc.setFillColor(...MAYFIN_COLORS.green);
+    doc.roundedRect(margin, y, contentWidth, 20, 2, 2, 'F');
     doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("RAPPORT D'ANALYSE DE FINANCEMENT", pageWidth / 2, y + 9, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text("Étude Multi-LLM par Intelligence Artificielle", pageWidth / 2, y + 15, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    y += 26;
+
+    // Company info box
+    doc.setDrawColor(...MAYFIN_COLORS.green);
+    doc.setFillColor(...MAYFIN_COLORS.lightGrey);
+    doc.roundedRect(margin, y, contentWidth, 32, 2, 2, 'FD');
+    y += 8;
+
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text("ANALYSE DE FINANCEMENT", pageWidth / 2, y + 7, { align: 'center' });
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text("Rapport d'étude", pageWidth / 2, y + 13, { align: 'center' });
-    doc.setTextColor(0, 0, 0);
-    y += 22;
-
-    // Compact company info
-    doc.setDrawColor(51, 102, 153);
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(margin, y, contentWidth, 28, 2, 2, 'FD');
+    doc.setTextColor(...MAYFIN_COLORS.darkGrey);
+    doc.text(data?.entreprise?.raisonSociale || dossier?.raison_sociale || 'Entreprise', pageWidth / 2, y, { align: 'center' });
     y += 6;
 
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text(data?.entreprise?.raisonSociale || dossier?.raison_sociale || 'Entreprise', pageWidth / 2, y, { align: 'center' });
-    y += 5;
-
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`SIREN: ${data?.entreprise?.siren || dossier?.siren || '-'} • SIRET: ${data?.entreprise?.siret || '-'}`, pageWidth / 2, y, { align: 'center' });
-    y += 4;
+    y += 5;
     doc.text(`${data?.entreprise?.formeJuridique || '-'} • ${data?.entreprise?.secteurActivite || '-'}`, pageWidth / 2, y, { align: 'center' });
-    y += 4;
+    y += 5;
     doc.text(`Code NAF: ${data?.entreprise?.codeNaf || '-'} • ${formatNumber(data?.entreprise?.nbSalaries) || 0} salariés`, pageWidth / 2, y, { align: 'center' });
-    y += 12;
+    y += 14;
 
-    // Score box - compact
+    // Score box with dynamic color
     const recommandation = analysisResult.recommandation;
     const scoreGlobal = score?.global || 0;
+    const scoreColor = getScoreColor(scoreGlobal);
 
-    const scoreColor = scoreGlobal >= 70 ? [39, 174, 96]
-        : scoreGlobal >= 45 ? [241, 196, 15]
-            : [231, 76, 60];
+    doc.setFillColor(...scoreColor);
+    doc.roundedRect(margin, y, contentWidth, 22, 2, 2, 'F');
 
-    doc.setFillColor(scoreColor[0], scoreColor[1], scoreColor[2]);
-    doc.roundedRect(margin, y, contentWidth, 18, 2, 2, 'F');
-
-    doc.setFontSize(12);
+    doc.setFontSize(18);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.text(`SCORE: ${scoreGlobal}/100 • ${recommandation || 'À ÉVALUER'}`, pageWidth / 2, y + 7, { align: 'center' });
-
-    doc.setFontSize(9);
+    doc.text(`SCORE: ${scoreGlobal}/100`, pageWidth / 2, y + 8, { align: 'center' });
+    
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Seuil accordable: ${formatCurrencySpaced(analysisResult.seuilAccordable)}`, pageWidth / 2, y + 13, { align: 'center' });
+    doc.text(`${recommandation || 'À ÉVALUER'} • Seuil accordable: ${formatCurrencySpaced(analysisResult.seuilAccordable)}`, pageWidth / 2, y + 16, { align: 'center' });
     doc.setTextColor(0, 0, 0);
-    y += 22;
+    y += 28;
 
-    if (analysisResult.modelsUsed && analysisResult.modelsUsed.length > 0) {
-        // Skip model display for confidentiality
-        y += 2;
-    }
+    // Financing summary table
+    const montantDemande = data?.financement?.montantDemande || dossier?.montant_demande || 0;
+    const apportClient = besoin?.apportClient || 0;
+    const tauxApport = besoin?.tauxApport || 0;
+    const mensualite = besoin?.mensualiteEstimee || 0;
+
+    const summaryData = [
+        ['Montant demandé', formatCurrencySpaced(montantDemande)],
+        ['Apport client', formatCurrencySpaced(apportClient)],
+        ['Taux d\'apport', formatPercentage(tauxApport)],
+        ['Mensualité estimée', formatCurrencySpaced(mensualite)],
+    ];
+
+    autoTable(doc, {
+        startY: y,
+        body: summaryData,
+        margin: { left: margin + 20, right: margin + 20 },
+        styles: { fontSize: 10, cellPadding: 4 },
+        columnStyles: {
+            0: { fontStyle: 'bold', fillColor: MAYFIN_COLORS.lightGrey as [number, number, number] },
+            1: { halign: 'right' }
+        },
+        theme: 'plain',
+    });
+    y = getAutoTableFinalY(doc) + 8;
+
+    // Analyst and date
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(128, 128, 128);
+    doc.text(`Analyste: Système d'Analyse IA - MayFin • Date: ${formatDate()}`, pageWidth / 2, y, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
 
     // ============ SCORING TABLE (on page 1) ============
     y += 3;
@@ -488,8 +570,8 @@ export function generateSmartAnalysisPDF(
             body: scoreData.slice(1),
             margin: { left: margin, right: margin },
             styles: { fontSize: 9, cellPadding: 2 },
-            headStyles: { fillColor: [51, 102, 153], textColor: 255 },
-            alternateRowStyles: { fillColor: [248, 250, 252] },
+            headStyles: { fillColor: MAYFIN_COLORS.green as [number, number, number], textColor: 255 },
+            alternateRowStyles: { fillColor: MAYFIN_COLORS.lightGrey as [number, number, number] },
         });
         y = getAutoTableFinalY(doc) + 6;
     }
