@@ -128,41 +128,55 @@ export function SortableSectionsPanel({
             <div className="p-4 rounded-lg border bg-gradient-to-br from-muted/50 to-muted/30">
                 <div className="flex items-center gap-2 mb-3">
                     <FileText className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">Aperçu du rapport</span>
+                    <span className="text-sm font-medium">Structure du PDF</span>
                     <Badge variant="secondary" className="ml-auto text-xs">
                         {enabledCount} section{enabledCount > 1 ? 's' : ''}
                     </Badge>
                 </div>
                 
                 {/* Mini document preview */}
-                <div className="bg-background rounded border shadow-sm p-3 space-y-2 max-h-40 overflow-y-auto">
-                    {/* Header mock */}
-                    <div className="flex items-center justify-between pb-2 border-b">
-                        <div className="h-3 w-24 bg-primary/20 rounded" />
-                        <div className="h-3 w-12 bg-success/30 rounded" />
-                    </div>
-                    
-                    {/* Section previews in order */}
-                    {sections.filter(s => s.enabled).map((section, index) => {
-                        const Icon = section.icon;
-                        return (
-                            <div 
-                                key={section.id}
-                                className="flex items-center gap-2 p-1.5 rounded bg-muted/30 text-xs"
-                            >
-                                <span className="text-muted-foreground font-mono w-4">{index + 1}.</span>
-                                <Icon className="h-3 w-3 text-primary" />
-                                <span className="truncate">{section.label}</span>
+                <div className="bg-white dark:bg-slate-950 rounded border shadow-sm overflow-hidden">
+                    {/* PDF Header mock */}
+                    <div className="h-2 bg-primary" />
+                    <div className="p-3 space-y-2">
+                        <div className="flex items-center justify-between pb-2 border-b border-dashed">
+                            <div className="flex items-center gap-2">
+                                <div className="h-4 w-4 bg-primary/20 rounded" />
+                                <div className="h-2 w-16 bg-primary/30 rounded" />
                             </div>
-                        );
-                    })}
-                    
-                    {enabledCount === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-2">
-                            Aucune section sélectionnée
-                        </p>
-                    )}
+                            <div className="h-6 w-6 rounded-full bg-success/20 flex items-center justify-center">
+                                <span className="text-[8px] font-bold text-success">75</span>
+                            </div>
+                        </div>
+                        
+                        {/* Section previews in order */}
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {sections.filter(s => s.enabled).map((section, index) => {
+                                const Icon = section.icon;
+                                return (
+                                    <div 
+                                        key={section.id}
+                                        className="flex items-center gap-2 p-1 rounded bg-muted/40 text-xs"
+                                    >
+                                        <span className="text-muted-foreground font-mono w-3 text-[10px]">{index + 1}</span>
+                                        <Icon className="h-3 w-3 text-primary/70" />
+                                        <span className="truncate text-[10px]">{section.label}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {enabledCount === 0 && (
+                            <p className="text-xs text-muted-foreground text-center py-2">
+                                Aucune section sélectionnée
+                            </p>
+                        )}
+                    </div>
                 </div>
+                
+                <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                    Aperçu de la structure du document PDF
+                </p>
             </div>
 
             {/* Sortable sections list */}
