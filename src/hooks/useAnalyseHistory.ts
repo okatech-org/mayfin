@@ -159,6 +159,26 @@ export function useAnalyseHistory(dossierId?: string) {
         }
     });
 
+    // Update notes in history
+    const updateNotes = useMutation({
+        mutationFn: async ({ id, notes }: { id: string; notes: string | null }) => {
+            const { error } = await supabase
+                .from('analyse_history')
+                .update({ notes })
+                .eq('id', id);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['analyse-history'] });
+            toast.success('Notes mises à jour');
+        },
+        onError: (error) => {
+            console.error('Erreur mise à jour notes:', error);
+            toast.error('Erreur lors de la mise à jour des notes');
+        }
+    });
+
     // Compare two analyses
     const compareAnalyses = useCallback((
         current: AnalyseHistoryEntry,
@@ -199,6 +219,8 @@ export function useAnalyseHistory(dossierId?: string) {
         isSaving: saveToHistory.isPending,
         deleteFromHistory: deleteFromHistory.mutateAsync,
         isDeleting: deleteFromHistory.isPending,
+        updateNotes: updateNotes.mutateAsync,
+        isUpdatingNotes: updateNotes.isPending,
         compareAnalyses,
         getLatestComparison
     };
