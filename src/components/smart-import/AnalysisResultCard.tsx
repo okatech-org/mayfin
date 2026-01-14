@@ -17,7 +17,6 @@ import {
     Shield,
     Target,
     BookOpen,
-    Eye,
     RefreshCw,
     Save,
     FileType,
@@ -685,7 +684,8 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
             </div>
 
             {/* Actions */}
-            <div className="px-6 py-4 bg-muted/30 border-t">
+            <div className="px-6 py-5 bg-muted/30 border-t space-y-4">
+                {/* Primary actions */}
                 <div className="flex flex-col sm:flex-row gap-3">
                     <Button
                         className="flex-1"
@@ -705,44 +705,52 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
                     </Button>
                 </div>
 
-                <Separator className="my-4" />
+                <Separator />
 
-                <div className="flex gap-2 flex-wrap">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowPreview(true)}
-                    >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Aperçu
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleSaveToHistory}
-                        disabled={isSaving}
-                    >
-                        <Save className="h-4 w-4 mr-2" />
-                        {isSaving ? 'Sauvegarde...' : 'Historique'}
-                    </Button>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="secondary" size="sm" disabled={isDownloading || isDownloadingWord}>
-                                <Download className="h-4 w-4 mr-2" />
-                                Télécharger
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                            <DropdownMenuItem onClick={handleDownloadPDF} disabled={isDownloading}>
-                                <FileText className="h-4 w-4 mr-2" />
-                                {isDownloading ? 'Génération...' : 'Format PDF'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleDownloadWord} disabled={isDownloadingWord}>
-                                <FileType className="h-4 w-4 mr-2" />
-                                {isDownloadingWord ? 'Génération...' : 'Format Word (.docx)'}
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                {/* Secondary actions - Documents & Export */}
+                <div className="space-y-3">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Rapport d'analyse
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowPreview(true)}
+                            className="gap-2"
+                        >
+                            <FileText className="h-4 w-4" />
+                            Aperçu PDF
+                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="secondary" size="sm" disabled={isDownloading || isDownloadingWord} className="gap-2">
+                                    <Download className="h-4 w-4" />
+                                    Télécharger
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                                <DropdownMenuItem onClick={handleDownloadPDF} disabled={isDownloading}>
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    {isDownloading ? 'Génération...' : 'Format PDF'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleDownloadWord} disabled={isDownloadingWord}>
+                                    <FileType className="h-4 w-4 mr-2" />
+                                    {isDownloadingWord ? 'Génération...' : 'Format Word (.docx)'}
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleSaveToHistory}
+                            disabled={isSaving}
+                            className="gap-2 ml-auto"
+                        >
+                            <Save className="h-4 w-4" />
+                            {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+                        </Button>
+                    </div>
                 </div>
             </div>
 
