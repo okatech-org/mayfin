@@ -63,6 +63,16 @@ export interface ExtractedFinancement {
     montantDemande?: number;
     objetFinancement?: string;
     dureeEnMois?: number;
+    apportClient?: number;
+    typeInvestissement?: string;
+    descriptionBien?: string;
+    descriptionProjet?: string;
+}
+
+export interface ExtractedProjet {
+    descriptionProjet?: string;
+    objectifs?: string[];
+    contexte?: string;
 }
 
 export interface ExtractedData {
@@ -70,6 +80,7 @@ export interface ExtractedData {
     dirigeant: ExtractedDirigeant;
     finances: { annees: ExtractedFinanceYear[] };
     financement: ExtractedFinancement;
+    projet?: ExtractedProjet;
     documentsDetectes: string[];
     confianceExtraction: number;
 }
