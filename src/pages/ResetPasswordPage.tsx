@@ -20,7 +20,11 @@ import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthInd
 import logoMayfin from '@/assets/logo-mayfin.png';
 
 const schema = z.object({
-  password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
+  password: z.string()
+    .min(8, 'Le mot de passe doit contenir au moins 8 caractères')
+    .regex(/[A-Z]/, 'Le mot de passe doit contenir une majuscule')
+    .regex(/[a-z]/, 'Le mot de passe doit contenir une minuscule')
+    .regex(/[0-9]/, 'Le mot de passe doit contenir un chiffre'),
   confirmPassword: z.string().min(1, 'La confirmation est requise'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Les mots de passe ne correspondent pas',

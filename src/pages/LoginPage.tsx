@@ -20,16 +20,27 @@ import { supabase } from '@/integrations/supabase/client';
 import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
 import logoMayfin from '@/assets/logo-mayfin.png';
 
-const schema = z.object({
+const loginSchema = z.object({
   email: z.string().email('Email invalide'),
-  password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
+  password: z.string().min(1, 'Le mot de passe est requis'),
+});
+
+const signupSchema = z.object({
+  email: z.string().email('Email invalide'),
+  password: z.string()
+    .min(8, 'Le mot de passe doit contenir au moins 8 caractères')
+    .regex(/[A-Z]/, 'Le mot de passe doit contenir une majuscule')
+    .regex(/[a-z]/, 'Le mot de passe doit contenir une minuscule')
+    .regex(/[0-9]/, 'Le mot de passe doit contenir un chiffre'),
 });
 
 const resetSchema = z.object({
   email: z.string().email('Email invalide'),
 });
 
-type FormData = z.infer<typeof schema>;
+type LoginFormData = z.infer<typeof loginSchema>;
+type SignupFormData = z.infer<typeof signupSchema>;
+type FormData = LoginFormData | SignupFormData;
 type ResetFormData = z.infer<typeof resetSchema>;
 
 export default function LoginPage() {
@@ -42,7 +53,7 @@ export default function LoginPage() {
   const [isResetting, setIsResetting] = useState(false);
 
   const form = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(isSignUp ? signupSchema : loginSchema),
     defaultValues: {
       email: '',
       password: '',
@@ -277,7 +288,10 @@ export default function LoginPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsSignUp(!isSignUp)}
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    form.reset();
+                  }}
                   className="text-sm text-primary hover:underline"
                 >
                   {isSignUp ? 'Déjà un compte ? Se connecter' : 'Pas de compte ? S\'inscrire'}
