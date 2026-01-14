@@ -1,16 +1,20 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileQuestion, ArrowRight, Car, Laptop, Building, Coins, Wrench, Package } from 'lucide-react';
+import { Sparkles, FileQuestion, ArrowRight, Car, Laptop, Building, Coins, Wrench, Package, History, Settings2, ImageOff, ChevronUp, ChevronDown } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DocumentDropzone } from '@/components/smart-import/DocumentDropzone';
 import { AIAnalysisProgress } from '@/components/smart-import/AIAnalysisProgress';
 import { AnalysisResultCard } from '@/components/smart-import/AnalysisResultCard';
+import { AnalyseHistoryPanel } from '@/components/smart-import/AnalyseHistoryPanel';
 import { useDocumentAnalysis } from '@/hooks/useDocumentAnalysis';
+import { useAnalyseHistory } from '@/hooks/useAnalyseHistory';
 import { useCreateDossier } from '@/hooks/useDossiers';
 import { toast } from 'sonner';
 
@@ -32,8 +36,12 @@ export default function SmartImportPage() {
     const [montantDemande, setMontantDemande] = useState('');
     const [apportClient, setApportClient] = useState('');
     const [typeBien, setTypeBien] = useState<TypeBien | ''>('');
+    const [disableCompression, setDisableCompression] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+    const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
     const { step, progress, uploadProgress, result, error, isAnalyzing, isDemoMode, analyzeDocuments, reset, cancel } = useDocumentAnalysis();
+    const { saveToHistory, isSaving } = useAnalyseHistory();
     const createDossier = useCreateDossier();
 
     const handleAnalyze = useCallback(async () => {
@@ -42,13 +50,26 @@ export default function SmartImportPage() {
             return;
         }
 
-        await analyzeDocuments(files, {
+        const analysisResult = await analyzeDocuments(files, {
             siret: siret || undefined,
             montantDemande: montantDemande ? parseFloat(montantDemande) : undefined,
             apportClient: apportClient ? parseFloat(apportClient) : undefined,
             typeBien: typeBien || undefined,
+            disableCompression,
         });
-    }, [files, siret, montantDemande, apportClient, typeBien, analyzeDocuments]);
+
+        // Auto-save to history if analysis was successful
+        if (analysisResult?.success && analysisResult.data) {
+            try {
+                await saveToHistory({
+                    analysisResult,
+                    sourceFiles: files.map(f => f.name),
+                });
+            } catch (err) {
+                console.error('Erreur sauvegarde historique:', err);
+            }
+        }
+    }, [files, siret, montantDemande, apportClient, typeBien, disableCompression, analyzeDocuments, saveToHistory]);
 
     const handleCreateDossier = useCallback(async () => {
         if (!result?.data) return;
@@ -113,6 +134,7 @@ export default function SmartImportPage() {
         setMontantDemande('');
         setApportClient('');
         setTypeBien('');
+        // Keep compression setting as user preference
     };
 
     const showForm = step === 'idle' || step === 'error';
@@ -241,6 +263,35 @@ export default function SmartImportPage() {
                                 </div>
                             </div>
 
+                            {/* Advanced options */}
+                            <Collapsible open={showAdvancedOptions} onOpenChange={setShowAdvancedOptions} className="mt-4 pt-4 border-t border-dashed">
+                                <CollapsibleTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground">
+                                        <Settings2 className="h-4 w-4" />
+                                        Options avancées
+                                        {showAdvancedOptions ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+                                    </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="pt-4 space-y-4">
+                                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                                        <div className="flex items-center gap-3">
+                                            <ImageOff className="h-5 w-5 text-muted-foreground" />
+                                            <div>
+                                                <p className="text-sm font-medium">Désactiver la compression d'images</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Envoyer les images sans compression (fichiers plus lourds, meilleure qualité)
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Switch
+                                            checked={disableCompression}
+                                            onCheckedChange={setDisableCompression}
+                                            disabled={isAnalyzing}
+                                        />
+                                    </div>
+                                </CollapsibleContent>
+                            </Collapsible>
+
                             <div className="mt-4 pt-4 border-t">
                                 <p className="text-sm text-muted-foreground mb-2">
                                     📋 <span className="font-medium">Types de dossiers acceptés :</span>
@@ -259,10 +310,18 @@ export default function SmartImportPage() {
                                 size="lg"
                                 className="flex-1"
                                 onClick={handleAnalyze}
-                                disabled={files.length === 0 || isAnalyzing}
+                                disabled={files.length === 0 || isAnalyzing || isSaving}
                             >
                                 <Sparkles className="h-4 w-4 mr-2" />
                                 Lancer l'analyse IA
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="lg"
+                                onClick={() => setShowHistory(!showHistory)}
+                            >
+                                <History className="h-4 w-4 mr-2" />
+                                Historique
                             </Button>
                             <Button
                                 variant="outline"
@@ -274,6 +333,13 @@ export default function SmartImportPage() {
                                 <ArrowRight className="h-4 w-4 ml-2" />
                             </Button>
                         </div>
+
+                        {/* History panel */}
+                        {showHistory && (
+                            <div className="mt-6">
+                                <AnalyseHistoryPanel />
+                            </div>
+                        )}
                     </div>
                 )}
 

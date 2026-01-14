@@ -353,16 +353,16 @@ export function useDocumentAnalysis() {
 
     const analyzeDocuments = useCallback(async (
         files: File[],
-        options?: { siret?: string; montantDemande?: number; apportClient?: number; typeBien?: string }
+        options?: { siret?: string; montantDemande?: number; apportClient?: number; typeBien?: string; disableCompression?: boolean }
     ) => {
         try {
             reset();
 
-            // Phase 1: Compress images
+            // Phase 1: Compress images (if not disabled)
             const hasImages = files.some(f => isImageFile(f));
             let processedFiles = files;
 
-            if (hasImages) {
+            if (hasImages && !options?.disableCompression) {
                 setStep('compressing');
                 setProgress(5);
 
@@ -386,6 +386,8 @@ export function useDocumentAnalysis() {
                         duration: 3000,
                     });
                 }
+            } else if (hasImages && options?.disableCompression) {
+                console.log('[SmartImport] Compression désactivée par l\'utilisateur');
             }
 
             // Phase 2: Upload files
