@@ -970,9 +970,89 @@ export function generateSmartAnalysisPDF(
         y += 8;
     }
 
-    // Funding request - compact
+    // ============ PLAN DE FINANCEMENT ============
+    checkPageBreak(70);
+    addSubtitle('Plan de financement');
+
+    // Get financing data
+    const montantDemandePlan = data?.financement?.montantDemande || dossier?.montant_demande || 0;
+    const apportClientPlan = besoin?.apportClient || 0;
+    const montantFinancePlan = besoin?.montantFinance || montantDemandePlan;
+    
+    // Estimate BFR and investments based on available data
+    const latestYearData = data?.finances?.annees?.[0];
+    const stocks = latestYearData?.stocks || 0;
+    const creancesClients = latestYearData?.creancesClients || 0;
+    const dettesFournisseurs = latestYearData?.dettesFournisseurs || 0;
+    const bfrEstime = stocks + creancesClients - dettesFournisseurs;
+    
+    // Calculate total needs (investment + BFR)
+    const investissements = montantDemandePlan > 0 ? montantDemandePlan : 0;
+    const totalBesoins = investissements + Math.max(bfrEstime, 0);
+    
+    // Calculate total resources
+    const autresFinancements = Math.max(0, totalBesoins - apportClientPlan - montantFinancePlan);
+    const totalRessources = apportClientPlan + montantFinancePlan + autresFinancements;
+
+    // Create the plan de financement table with two sections
+    const planData = [
+        ['BESOINS', 'Montant', 'RESSOURCES', 'Montant'],
+        ['Investissements matériels', formatCurrencySpaced(investissements), 'Apport personnel', formatCurrencySpaced(apportClientPlan)],
+        ['Besoin en fonds de roulement', formatCurrencySpaced(Math.max(bfrEstime, 0)), 'Financement bancaire', formatCurrencySpaced(montantFinancePlan)],
+        ['Frais d\'établissement', formatCurrencySpaced(0), 'Autres financements', formatCurrencySpaced(autresFinancements)],
+        ['', '', '', ''],
+        ['TOTAL BESOINS', formatCurrencySpaced(totalBesoins), 'TOTAL RESSOURCES', formatCurrencySpaced(totalRessources)],
+    ];
+
+    autoTable(doc, {
+        startY: y,
+        body: planData,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 9, cellPadding: 4 },
+        columnStyles: {
+            0: { fontStyle: 'bold', fillColor: MAYFIN_COLORS.lightGrey as [number, number, number], cellWidth: 45 },
+            1: { halign: 'right', cellWidth: 35 },
+            2: { fontStyle: 'bold', fillColor: MAYFIN_COLORS.lightGrey as [number, number, number], cellWidth: 45 },
+            3: { halign: 'right', cellWidth: 35 },
+        },
+        didParseCell: (cellData) => {
+            // Style the header row
+            if (cellData.row.index === 0) {
+                cellData.cell.styles.fillColor = MAYFIN_COLORS.green;
+                cellData.cell.styles.textColor = [255, 255, 255];
+                cellData.cell.styles.fontStyle = 'bold';
+            }
+            // Style the total row
+            if (cellData.row.index === 5) {
+                cellData.cell.styles.fillColor = MAYFIN_COLORS.green;
+                cellData.cell.styles.textColor = [255, 255, 255];
+                cellData.cell.styles.fontStyle = 'bold';
+            }
+            // Empty row styling
+            if (cellData.row.index === 4) {
+                cellData.cell.styles.fillColor = [255, 255, 255];
+                cellData.cell.styles.minCellHeight = 2;
+            }
+        },
+        theme: 'plain',
+    });
+    y = getAutoTableFinalY(doc) + 5;
+
+    // Taux d'apport indicator
+    const tauxApportCalc = totalBesoins > 0 ? (apportClientPlan / totalBesoins) * 100 : 0;
+    const tauxApportStatus = tauxApportCalc >= 20 ? '✓' : '⚠';
+    const tauxApportColor = tauxApportCalc >= 20 ? MAYFIN_COLORS.successGreen : MAYFIN_COLORS.warningOrange;
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...tauxApportColor);
+    doc.text(`${tauxApportStatus} Taux d'apport: ${tauxApportCalc.toFixed(1)}% (standard bancaire > 20%)`, margin, y);
+    doc.setTextColor(0, 0, 0);
+    y += 8;
+
+    // Funding request details - compact
     if (data?.financement) {
-        addSubtitle('Demande de financement');
+        addSubtitle('Détails de la demande');
         addInlineText('Montant demandé', formatCurrencySpaced(data.financement.montantDemande));
         addInlineText('Objet', data.financement.objetFinancement);
         addInlineText('Durée', data.financement.dureeEnMois ? `${data.financement.dureeEnMois} mois` : '-');
