@@ -30,7 +30,7 @@ import { useCreateDossier } from '@/hooks/useDossiers';
 import { toast } from 'sonner';
 
 type TypeBienCode = 'vehicule' | 'materiel' | 'immobilier' | 'informatique' | 'bfr' | 'autre';
-type ContexteDossier = 'entreprise_existante' | 'creation_entreprise' | 'reprise_activite';
+type ContexteDossier = 'entreprise_existante' | 'creation_entreprise' | 'reprise_activite' | 'franchise';
 
 interface TypeBienItem {
     type: TypeBienCode;
@@ -50,6 +50,7 @@ const CONTEXTE_DOSSIER_OPTIONS: { value: ContexteDossier; label: string; descrip
     { value: 'entreprise_existante', label: 'Entreprise existante', description: 'Société déjà immatriculée' },
     { value: 'creation_entreprise', label: 'Création d\'entreprise', description: 'Projet de création' },
     { value: 'reprise_activite', label: 'Reprise d\'activité', description: 'Rachat ou transmission' },
+    { value: 'franchise', label: 'Franchise', description: 'Réseau de franchise' },
 ];
 
 export default function SmartImportPage() {
@@ -184,35 +185,92 @@ export default function SmartImportPage() {
                     fieldsUpdated++;
                 }
 
-                // Auto-detect type d'investissement if we have details
-                if (financement?.typeInvestissement && typesBien.length === 0) {
-                    const typeMapping: Record<string, TypeBienCode> = {
-                        'vehicule': 'vehicule',
-                        'materiel': 'materiel',
-                        'immobilier': 'immobilier',
-                        'bfr': 'bfr',
-                        'informatique': 'informatique',
-                        'autre': 'autre'
-                    };
+                // Auto-detect type d'investissement from multiple sources
+                if (typesBien.length === 0) {
+                    const detectedTypes: TypeBienItem[] = [];
+                    const objetLower = (financement?.objetFinancement || '').toLowerCase();
+                    const descriptionLower = (financement?.descriptionProjet || '').toLowerCase();
+                    const combinedText = `${objetLower} ${descriptionLower}`;
                     
-                    const detectedType = typeMapping[financement.typeInvestissement] || 'autre';
-                    setTypesBien([{ type: detectedType, montant: financement.montantDemande }]);
-                    fieldsUpdated++;
+                    // Detect vehicle-related keywords
+                    if (/v[ée]hicule|voiture|camion|utilitaire|auto|flotte|transport|tracteur|remorque/.test(combinedText)) {
+                        detectedTypes.push({ type: 'vehicule', montant: undefined });
+                    }
+                    
+                    // Detect material/equipment keywords
+                    if (/mat[ée]riel|[ée]quipement|machine|outillage|engin|chariot|grue|nacelle/.test(combinedText)) {
+                        detectedTypes.push({ type: 'materiel', montant: undefined });
+                    }
+                    
+                    // Detect real estate keywords
+                    if (/immobilier|local|bureau|entrep[oô]t|b[aâ]timent|murs|locaux|terrain|commerce/.test(combinedText)) {
+                        detectedTypes.push({ type: 'immobilier', montant: undefined });
+                    }
+                    
+                    // Detect IT keywords
+                    if (/informatique|ordinateur|serveur|logiciel|it|digital|num[ée]rique|technologie/.test(combinedText)) {
+                        detectedTypes.push({ type: 'informatique', montant: undefined });
+                    }
+                    
+                    // Detect BFR/treasury keywords
+                    if (/bfr|tr[ée]sorerie|fonds de roulement|stock|cr[ée]ances|besoin en fonds/.test(combinedText)) {
+                        detectedTypes.push({ type: 'bfr', montant: undefined });
+                    }
+                    
+                    // Fallback to typeInvestissement if provided
+                    if (detectedTypes.length === 0 && financement?.typeInvestissement) {
+                        const typeMapping: Record<string, TypeBienCode> = {
+                            'vehicule': 'vehicule',
+                            'materiel': 'materiel',
+                            'immobilier': 'immobilier',
+                            'bfr': 'bfr',
+                            'informatique': 'informatique',
+                            'autre': 'autre'
+                        };
+                        const detectedType = typeMapping[financement.typeInvestissement] || 'autre';
+                        detectedTypes.push({ type: detectedType, montant: financement.montantDemande });
+                    }
+                    
+                    if (detectedTypes.length > 0) {
+                        setTypesBien(detectedTypes);
+                        fieldsUpdated++;
+                    }
                 }
 
-                // Try to detect context from documents
+                // Detect context from documents with enhanced analysis
                 if (contextesDossier.length === 0) {
-                    // If we have creation date very recent or no financial history, likely a creation
+                    const detectedContexts: ContexteDossier[] = [];
                     const hasFinancialHistory = result.data.finances?.annees && result.data.finances.annees.length > 0;
+                    const objetLower = (financement?.objetFinancement || '').toLowerCase();
+                    const descriptionLower = (financement?.descriptionProjet || '').toLowerCase();
+                    const raisonSocialeLower = (entreprise?.raisonSociale || '').toLowerCase();
+                    const combinedText = `${objetLower} ${descriptionLower} ${raisonSocialeLower}`;
                     
-                    if (!hasFinancialHistory && financement?.objetFinancement?.toLowerCase().includes('création')) {
-                        setContextesDossier(['creation_entreprise']);
-                        fieldsUpdated++;
-                    } else if (financement?.objetFinancement?.toLowerCase().includes('reprise')) {
-                        setContextesDossier(['reprise_activite']);
-                        fieldsUpdated++;
-                    } else if (hasFinancialHistory) {
-                        setContextesDossier(['entreprise_existante']);
+                    // Detect franchise keywords
+                    if (/franchise|franchis[ée]|r[ée]seau|enseigne|master franchise|concept|licence de marque/.test(combinedText)) {
+                        detectedContexts.push('franchise');
+                    }
+                    
+                    // Detect creation keywords
+                    if (/cr[ée]ation|nouvelle entreprise|lancement|d[ée]marrage|startup|projet de cr[ée]ation/.test(combinedText)) {
+                        detectedContexts.push('creation_entreprise');
+                    }
+                    
+                    // Detect reprise/takeover keywords
+                    if (/reprise|rachat|transmission|cession|acquisition|succession/.test(combinedText)) {
+                        detectedContexts.push('reprise_activite');
+                    }
+                    
+                    // If has financial history and no other context detected, assume existing company
+                    if (hasFinancialHistory && detectedContexts.length === 0) {
+                        detectedContexts.push('entreprise_existante');
+                    } else if (!hasFinancialHistory && detectedContexts.length === 0) {
+                        // No history and no specific context = likely creation
+                        detectedContexts.push('creation_entreprise');
+                    }
+                    
+                    if (detectedContexts.length > 0) {
+                        setContextesDossier(detectedContexts);
                         fieldsUpdated++;
                     }
                 }
@@ -550,7 +608,7 @@ export default function SmartImportPage() {
                             {/* Contexte du dossier */}
                             <div className="mt-4 pt-4 border-t border-dashed">
                                 <Label className="mb-3 block">Contexte du financement</Label>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                                     {CONTEXTE_DOSSIER_OPTIONS.map((option) => (
                                         <label
                                             key={option.value}
