@@ -383,23 +383,118 @@ RÉPONDS EN JSON :
   "seuilAccordable": number
 }`;
 
-const PERPLEXITY_MARKET_PROMPT = `Analyse le contexte sectoriel pour une entreprise :
+// Enhanced Perplexity prompts for deeper sector analysis
+const PERPLEXITY_MARKET_CONTEXT_PROMPT = `Tu es un analyste économique spécialisé dans le financement professionnel en France.
+
+ENTREPRISE À ANALYSER:
+- Secteur d'activité : {SECTEUR}
+- Code NAF/APE : {CODE_NAF}
+- Localisation : {LOCALISATION}
+- Raison sociale : {RAISON_SOCIALE}
+
+RECHERCHE APPROFONDIE - CONTEXTE DE MARCHÉ 2024-2026:
+
+1. État actuel du secteur en France et dans la région
+2. Indicateurs macroéconomiques impactants (PIB, emploi, consommation)
+3. Évolutions réglementaires récentes et à venir
+4. Investissements et financement dans le secteur
+5. Taux de défaillance sectoriel si disponible
+6. Perspectives économiques court et moyen terme
+
+Réponds en JSON:
+{
+  "contexteMarche": "Analyse détaillée et chiffrée du contexte...",
+  "indicateursClés": {
+    "croissanceSecteur": "X%",
+    "tauxDefaillance": "X%",
+    "evolutionEmploi": "description"
+  },
+  "reglementation": ["évolution1", "évolution2", ...]
+}`;
+
+const PERPLEXITY_RISKS_PROMPT = `Tu es un analyste de risques pour le financement d'entreprises.
+
+ENTREPRISE:
 - Secteur : {SECTEUR}
 - Code NAF : {CODE_NAF}
-- Localisation : {LOCALISATION}
+- Région : {LOCALISATION}
 
-Fournis :
-1. Contexte actuel du marché (tendances 2024-2025)
-2. Risques sectoriels majeurs (3-5 risques)
-3. Opportunités de croissance (3-5 opportunités)
-4. Benchmark : positionnement par rapport aux concurrents type
+ANALYSE DES RISQUES SECTORIELS (6-8 risques détaillés):
 
-Format JSON :
+Catégories à couvrir:
+1. Risques économiques et conjoncturels
+2. Risques réglementaires et conformité
+3. Risques technologiques (disruption, obsolescence)
+4. Risques de marché (concurrence, prix, demande)
+5. Risques environnementaux et ESG
+6. Risques opérationnels spécifiques au secteur
+7. Risques liés aux coûts (énergie, matières premières, main d'œuvre)
+8. Risques de dépendance (clients, fournisseurs)
+
+Pour chaque risque: description précise + niveau d'impact (élevé/moyen/faible)
+
+Réponds en JSON:
 {
-  "contexteMarche": "Analyse détaillée...",
-  "risquesSecteur": ["risque1", "risque2", ...],
-  "opportunites": ["opportunite1", "opportunite2", ...],
-  "benchmarkConcurrents": "Analyse comparative..."
+  "risquesSecteur": [
+    {"description": "risque détaillé", "impact": "élevé/moyen/faible", "categorie": "type"},
+    ...
+  ],
+  "risquePrincipal": "Le risque le plus critique à surveiller"
+}`;
+
+const PERPLEXITY_OPPORTUNITIES_PROMPT = `Tu es un conseiller en développement d'entreprise.
+
+ENTREPRISE:
+- Secteur : {SECTEUR}
+- Code NAF : {CODE_NAF}
+- Région : {LOCALISATION}
+
+ANALYSE DES OPPORTUNITÉS (6-8 opportunités détaillées):
+
+Axes à explorer:
+1. Leviers de croissance identifiés dans le secteur
+2. Innovations et nouvelles technologies applicables
+3. Aides, subventions et financements publics disponibles (France 2030, BPI, régionales)
+4. Tendances de consommation favorables
+5. Partenariats stratégiques possibles
+6. Diversification et nouveaux marchés
+7. Transition écologique et RSE comme avantage compétitif
+8. Digitalisation et optimisation des processus
+
+Pour chaque opportunité: description + potentiel (fort/moyen/modéré)
+
+Réponds en JSON:
+{
+  "opportunites": [
+    {"description": "opportunité détaillée", "potentiel": "fort/moyen/modéré", "categorie": "type"},
+    ...
+  ],
+  "opportunitePrincipale": "L'opportunité la plus prometteuse"
+}`;
+
+const PERPLEXITY_BENCHMARK_PROMPT = `Tu es un analyste concurrentiel spécialisé.
+
+ENTREPRISE:
+- Secteur : {SECTEUR}
+- Code NAF : {CODE_NAF}
+- Région : {LOCALISATION}
+
+BENCHMARK CONCURRENTIEL APPROFONDI:
+
+1. Structure du marché (fragmentation, acteurs majeurs)
+2. Marges moyennes du secteur (marge brute, marge nette)
+3. Ratios financiers types (BFR, endettement, CAF)
+4. Barrières à l'entrée et facteurs clés de succès
+5. Positionnement des leaders vs PME/TPE
+6. Tendances de consolidation ou fragmentation
+7. Stratégies gagnantes observées
+
+Réponds en JSON:
+{
+  "structureMarche": "Description de la structure...",
+  "margesMoyennes": {"brute": "X%", "nette": "X%"},
+  "facteursSucces": ["facteur1", "facteur2", ...],
+  "positionnementType": "Description du positionnement recommandé..."
 }`;
 
 // ============== ANALYSE BESOIN & PRODUIT ==============
@@ -683,7 +778,8 @@ async function callOpenAIAnalysis(extractedData: ExtractedData): Promise<{
 async function callPerplexityMarket(
   secteur: string,
   codeNaf: string,
-  localisation: string
+  localisation: string,
+  raisonSociale?: string
 ): Promise<AnalysisResult["analyseSectorielle"]> {
   const apiKey = Deno.env.get("PERPLEXITY_API_KEY");
   if (!apiKey) {
@@ -691,52 +787,195 @@ async function callPerplexityMarket(
     return undefined;
   }
 
-  console.log("[Perplexity] Starting market analysis...");
+  console.log("[Perplexity] Starting enhanced multi-query market analysis...");
 
-  const prompt = PERPLEXITY_MARKET_PROMPT
+  const replacePlaceholders = (prompt: string) => prompt
     .replace("{SECTEUR}", secteur || "Non spécifié")
     .replace("{CODE_NAF}", codeNaf || "Non spécifié")
-    .replace("{LOCALISATION}", localisation || "France");
+    .replace("{LOCALISATION}", localisation || "France")
+    .replace("{RAISON_SOCIALE}", raisonSociale || "Non spécifié");
 
-  const response = await fetch("https://api.perplexity.ai/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "sonar-pro",
-      messages: [
-        { role: "system", content: "Tu es un analyste de marché. Réponds en JSON." },
-        { role: "user", content: prompt }
-      ],
-      search_recency_filter: "month"
-    })
+  // Helper function for Perplexity API calls
+  const callPerplexity = async (prompt: string, queryName: string): Promise<{ content: string; sources: string[] }> => {
+    try {
+      const response = await fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "sonar-pro",
+          messages: [
+            { 
+              role: "system", 
+              content: "Tu es un analyste économique expert. Fournis des analyses précises, chiffrées et sourcées. Réponds uniquement en JSON valide sans markdown." 
+            },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.1,
+          max_tokens: 3000,
+          search_recency_filter: "month",
+          return_citations: true
+        })
+      });
+
+      if (!response.ok) {
+        console.error(`[Perplexity ${queryName}] Error:`, response.status);
+        return { content: "", sources: [] };
+      }
+
+      const result = await response.json();
+      const text = result.choices?.[0]?.message?.content || "";
+      const sources = result.citations || [];
+      console.log(`[Perplexity ${queryName}] ✅ Received ${sources.length} sources`);
+      return { content: text, sources };
+    } catch (error) {
+      console.error(`[Perplexity ${queryName}] Error:`, error);
+      return { content: "", sources: [] };
+    }
+  };
+
+  // Execute all queries in parallel for maximum efficiency
+  console.log("[Perplexity] Launching 4 parallel deep research queries...");
+  
+  const [contextResult, risksResult, oppsResult, benchResult] = await Promise.all([
+    callPerplexity(replacePlaceholders(PERPLEXITY_MARKET_CONTEXT_PROMPT), "Context"),
+    callPerplexity(replacePlaceholders(PERPLEXITY_RISKS_PROMPT), "Risks"),
+    callPerplexity(replacePlaceholders(PERPLEXITY_OPPORTUNITIES_PROMPT), "Opportunities"),
+    callPerplexity(replacePlaceholders(PERPLEXITY_BENCHMARK_PROMPT), "Benchmark")
+  ]);
+
+  // Collect all unique sources
+  const allSources = new Set<string>();
+  [contextResult, risksResult, oppsResult, benchResult].forEach(r => {
+    r.sources.forEach(s => allSources.add(s));
   });
 
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("[Perplexity] Error:", error);
+  console.log(`[Perplexity] Total unique sources collected: ${allSources.size}`);
+
+  // Parse JSON responses
+  const parseJson = (text: string): Record<string, unknown> => {
+    if (!text) return {};
+    try {
+      let jsonStr = text;
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) jsonStr = jsonMatch[1].trim();
+      jsonStr = jsonStr.replace(/^\s*```json?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      return JSON.parse(jsonStr);
+    } catch {
+      return {};
+    }
+  };
+
+  const contextData = parseJson(contextResult.content);
+  const risksData = parseJson(risksResult.content);
+  const oppsData = parseJson(oppsResult.content);
+  const benchData = parseJson(benchResult.content);
+
+  // Build enriched context
+  let contexteMarche = "";
+  
+  if (contextData.contexteMarche) {
+    contexteMarche = String(contextData.contexteMarche);
+  }
+  
+  // Add key indicators if available
+  const indicateurs = contextData.indicateursClés as Record<string, string> | undefined;
+  if (indicateurs) {
+    const indicateursList = Object.entries(indicateurs)
+      .filter(([_, v]) => v && v !== "N/A")
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(", ");
+    if (indicateursList) {
+      contexteMarche += ` Indicateurs clés: ${indicateursList}.`;
+    }
+  }
+  
+  // Add regulation info
+  if (Array.isArray(contextData.reglementation) && contextData.reglementation.length > 0) {
+    contexteMarche += ` Évolutions réglementaires: ${(contextData.reglementation as string[]).slice(0, 3).join("; ")}.`;
+  }
+
+  // Build risks array with detailed formatting
+  let risquesSecteur: string[] = [];
+  if (Array.isArray(risksData.risquesSecteur)) {
+    risquesSecteur = (risksData.risquesSecteur as Array<{ description?: string; impact?: string; categorie?: string } | string>).map(r => {
+      if (typeof r === 'string') return r;
+      const desc = r.description || "";
+      const impact = r.impact ? ` [Impact: ${r.impact}]` : "";
+      return `${desc}${impact}`;
+    }).filter(Boolean);
+  }
+  
+  // Add principal risk if available
+  if (risksData.risquePrincipal && typeof risksData.risquePrincipal === 'string') {
+    if (!risquesSecteur.includes(risksData.risquePrincipal)) {
+      risquesSecteur.unshift(`⚠️ ${risksData.risquePrincipal}`);
+    }
+  }
+
+  // Build opportunities array with detailed formatting
+  let opportunites: string[] = [];
+  if (Array.isArray(oppsData.opportunites)) {
+    opportunites = (oppsData.opportunites as Array<{ description?: string; potentiel?: string; categorie?: string } | string>).map(o => {
+      if (typeof o === 'string') return o;
+      const desc = o.description || "";
+      const potentiel = o.potentiel ? ` [Potentiel: ${o.potentiel}]` : "";
+      return `${desc}${potentiel}`;
+    }).filter(Boolean);
+  }
+  
+  // Add principal opportunity if available
+  if (oppsData.opportunitePrincipale && typeof oppsData.opportunitePrincipale === 'string') {
+    if (!opportunites.includes(oppsData.opportunitePrincipale)) {
+      opportunites.unshift(`✨ ${oppsData.opportunitePrincipale}`);
+    }
+  }
+
+  // Build enriched benchmark
+  let benchmarkConcurrents = "";
+  
+  if (benchData.structureMarche) {
+    benchmarkConcurrents = String(benchData.structureMarche);
+  }
+  
+  // Add margins if available
+  const marges = benchData.margesMoyennes as Record<string, string> | undefined;
+  if (marges) {
+    const margesList = Object.entries(marges)
+      .filter(([_, v]) => v && v !== "N/A")
+      .map(([k, v]) => `marge ${k}: ${v}`)
+      .join(", ");
+    if (margesList) {
+      benchmarkConcurrents += ` Marges sectorielles moyennes: ${margesList}.`;
+    }
+  }
+  
+  // Add success factors
+  if (Array.isArray(benchData.facteursSucces) && benchData.facteursSucces.length > 0) {
+    benchmarkConcurrents += ` Facteurs clés de succès: ${(benchData.facteursSucces as string[]).slice(0, 4).join(", ")}.`;
+  }
+  
+  if (benchData.positionnementType) {
+    benchmarkConcurrents += ` ${benchData.positionnementType}`;
+  }
+
+  // If we got very little data, provide fallback
+  if (!contexteMarche && !risquesSecteur.length && !opportunites.length) {
+    console.log("[Perplexity] Insufficient data, analysis may be incomplete");
     return undefined;
   }
 
-  const result = await response.json();
-  const text = result.choices?.[0]?.message?.content || "";
-  const sources = result.citations || [];
-  
-  let jsonStr = text;
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (jsonMatch) jsonStr = jsonMatch[1].trim();
-  
-  try {
-    const parsed = JSON.parse(jsonStr);
-    parsed.sources = sources;
-    console.log("[Perplexity] Market analysis complete");
-    return parsed;
-  } catch {
-    console.log("[Perplexity] Failed to parse response");
-    return undefined;
-  }
+  console.log(`[Perplexity] ✅ Enhanced analysis complete: ${risquesSecteur.length} risks, ${opportunites.length} opportunities, ${allSources.size} sources`);
+
+  return {
+    contexteMarche: contexteMarche || `Analyse du secteur ${secteur} en cours d'enrichissement.`,
+    risquesSecteur: risquesSecteur.length > 0 ? risquesSecteur : ["Données de risques en cours de collecte"],
+    opportunites: opportunites.length > 0 ? opportunites : ["Données d'opportunités en cours de collecte"],
+    benchmarkConcurrents: benchmarkConcurrents || "Benchmark concurrentiel en cours d'analyse.",
+    sources: Array.from(allSources)
+  };
 }
 
 async function callSynthesis(
