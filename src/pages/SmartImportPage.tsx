@@ -1,19 +1,28 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileQuestion, ArrowRight, Car, Laptop, Building, Coins, Wrench, Package, History, Settings2, ImageOff, ChevronUp, ChevronDown } from 'lucide-react';
+import { Sparkles, FileQuestion, ArrowRight, Car, Laptop, Building, Coins, Wrench, Package, History, Settings2, ImageOff, ChevronUp, ChevronDown, Save, StickyNote } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { DocumentDropzone } from '@/components/smart-import/DocumentDropzone';
 import { AIAnalysisProgress } from '@/components/smart-import/AIAnalysisProgress';
 import { AnalysisResultCard } from '@/components/smart-import/AnalysisResultCard';
 import { AnalyseHistoryPanel } from '@/components/smart-import/AnalyseHistoryPanel';
-import { useDocumentAnalysis } from '@/hooks/useDocumentAnalysis';
+import { useDocumentAnalysis, type AnalysisResult } from '@/hooks/useDocumentAnalysis';
 import { useAnalyseHistory } from '@/hooks/useAnalyseHistory';
 import { useCreateDossier } from '@/hooks/useDossiers';
 import { toast } from 'sonner';
@@ -39,6 +48,10 @@ export default function SmartImportPage() {
     const [disableCompression, setDisableCompression] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+    const [showNotesDialog, setShowNotesDialog] = useState(false);
+    const [analysisNotes, setAnalysisNotes] = useState('');
+    const [pendingAnalysisResult, setPendingAnalysisResult] = useState<AnalysisResult | null>(null);
+    const [pendingSourceFiles, setPendingSourceFiles] = useState<string[]>([]);
 
     const { step, progress, uploadProgress, result, error, isAnalyzing, isDemoMode, analyzeDocuments, reset, cancel } = useDocumentAnalysis();
     const { saveToHistory, isSaving } = useAnalyseHistory();
@@ -58,18 +71,39 @@ export default function SmartImportPage() {
             disableCompression,
         });
 
-        // Auto-save to history if analysis was successful
+        // Store result and show notes dialog for saving to history
         if (analysisResult?.success && analysisResult.data) {
-            try {
-                await saveToHistory({
-                    analysisResult,
-                    sourceFiles: files.map(f => f.name),
-                });
-            } catch (err) {
-                console.error('Erreur sauvegarde historique:', err);
-            }
+            setPendingAnalysisResult(analysisResult);
+            setPendingSourceFiles(files.map(f => f.name));
+            setShowNotesDialog(true);
         }
-    }, [files, siret, montantDemande, apportClient, typeBien, disableCompression, analyzeDocuments, saveToHistory]);
+    }, [files, siret, montantDemande, apportClient, typeBien, disableCompression, analyzeDocuments]);
+
+    const handleSaveToHistory = useCallback(async (withNotes: boolean) => {
+        if (!pendingAnalysisResult) return;
+
+        try {
+            await saveToHistory({
+                analysisResult: pendingAnalysisResult,
+                sourceFiles: pendingSourceFiles,
+                notes: withNotes && analysisNotes.trim() ? analysisNotes.trim() : undefined,
+            });
+            setShowNotesDialog(false);
+            setAnalysisNotes('');
+            setPendingAnalysisResult(null);
+            setPendingSourceFiles([]);
+        } catch (err) {
+            console.error('Erreur sauvegarde historique:', err);
+        }
+    }, [pendingAnalysisResult, pendingSourceFiles, analysisNotes, saveToHistory]);
+
+    const handleSkipSaveToHistory = useCallback(() => {
+        setShowNotesDialog(false);
+        setAnalysisNotes('');
+        setPendingAnalysisResult(null);
+        setPendingSourceFiles([]);
+        toast.info('Analyse non sauvegardée dans l\'historique');
+    }, []);
 
     const handleCreateDossier = useCallback(async () => {
         if (!result?.data) return;
@@ -384,6 +418,61 @@ export default function SmartImportPage() {
                     </div>
                 )}
             </div>
+
+            {/* Notes Dialog for saving to history */}
+            <Dialog open={showNotesDialog} onOpenChange={setShowNotesDialog}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <StickyNote className="h-5 w-5 text-primary" />
+                            Sauvegarder l'analyse
+                        </DialogTitle>
+                        <DialogDescription>
+                            Ajoutez des notes personnalisées pour retrouver facilement cette analyse dans l'historique.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="analysis-notes">Notes (optionnel)</Label>
+                            <Textarea
+                                id="analysis-notes"
+                                value={analysisNotes}
+                                onChange={(e) => setAnalysisNotes(e.target.value)}
+                                placeholder="Ex: Dossier prioritaire, revoir les garanties, attente documents complémentaires..."
+                                className="min-h-[100px] resize-none"
+                                maxLength={500}
+                            />
+                            <p className="text-xs text-muted-foreground text-right">
+                                {analysisNotes.length}/500 caractères
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter className="flex-col sm:flex-row gap-2">
+                        <Button
+                            variant="ghost"
+                            onClick={handleSkipSaveToHistory}
+                            className="sm:mr-auto"
+                        >
+                            Ne pas sauvegarder
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => handleSaveToHistory(false)}
+                            disabled={isSaving}
+                        >
+                            <Save className="h-4 w-4 mr-2" />
+                            Sauvegarder sans notes
+                        </Button>
+                        <Button
+                            onClick={() => handleSaveToHistory(true)}
+                            disabled={isSaving}
+                        >
+                            <Save className="h-4 w-4 mr-2" />
+                            {isSaving ? 'Sauvegarde...' : 'Sauvegarder avec notes'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Layout>
     );
 }
