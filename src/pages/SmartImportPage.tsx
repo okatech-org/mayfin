@@ -33,7 +33,7 @@ export default function SmartImportPage() {
     const [apportClient, setApportClient] = useState('');
     const [typeBien, setTypeBien] = useState<TypeBien | ''>('');
 
-    const { step, progress, uploadProgress, result, error, isAnalyzing, isDemoMode, analyzeDocuments, reset } = useDocumentAnalysis();
+    const { step, progress, uploadProgress, result, error, isAnalyzing, isDemoMode, analyzeDocuments, reset, cancel } = useDocumentAnalysis();
     const createDossier = useCreateDossier();
 
     const handleAnalyze = useCallback(async () => {
@@ -280,7 +280,13 @@ export default function SmartImportPage() {
                 {/* Progress section */}
                 {showProgress && (
                     <div className="space-y-6">
-                        <AIAnalysisProgress step={step} progress={progress} error={error} uploadProgress={uploadProgress} />
+                        <AIAnalysisProgress 
+                            step={step} 
+                            progress={progress} 
+                            error={error} 
+                            uploadProgress={uploadProgress} 
+                            onCancel={cancel}
+                        />
                     </div>
                 )}
 

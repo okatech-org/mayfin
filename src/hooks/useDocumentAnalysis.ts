@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { compressFiles, isImageFile } from '@/lib/imageCompression';
@@ -328,6 +328,8 @@ export function useDocumentAnalysis() {
     const [result, setResult] = useState<AnalysisResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isDemoMode, setIsDemoMode] = useState(false);
+    const [isCancelled, setIsCancelled] = useState(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     const reset = useCallback(() => {
         setStep('idle');
@@ -336,6 +338,17 @@ export function useDocumentAnalysis() {
         setResult(null);
         setError(null);
         setIsDemoMode(false);
+        setIsCancelled(false);
+        abortControllerRef.current = null;
+    }, []);
+
+    const cancel = useCallback(() => {
+        setIsCancelled(true);
+        abortControllerRef.current?.abort();
+        setStep('idle');
+        setProgress(0);
+        setUploadProgress(null);
+        setError(null);
     }, []);
 
     const analyzeDocuments = useCallback(async (
@@ -499,8 +512,10 @@ export function useDocumentAnalysis() {
         result,
         error,
         isDemoMode,
+        isCancelled,
         isAnalyzing: step !== 'idle' && step !== 'complete' && step !== 'error',
         analyzeDocuments,
         reset,
+        cancel,
     };
 }
