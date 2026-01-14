@@ -1193,10 +1193,25 @@ export function generateSmartAnalysisPDF(
         }
     }
 
-    // ============ FOOTER ON ALL PAGES ============
+    // ============ WATERMARK & FOOTER ON ALL PAGES ============
     const totalPages = doc.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
+        
+        // Diagonal watermark "CONFIDENTIEL" with low opacity
+        doc.setFontSize(55);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(220, 220, 220); // Light gray for watermark effect
+        
+        // Draw watermark in center with rotation
+        const text = 'CONFIDENTIEL';
+        doc.text(text, pageWidth / 2, pageHeight / 2, { 
+            align: 'center',
+            angle: 45
+        });
+        
+        // Reset text color for footer
+        doc.setTextColor(128, 128, 128);
         
         // Footer line
         doc.setDrawColor(200, 200, 200);
@@ -1205,7 +1220,6 @@ export function generateSmartAnalysisPDF(
         // Footer text
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(128, 128, 128);
         
         // Left: Document confidentiel - MayFin
         doc.text('Document confidentiel - MayFin', margin, pageHeight - 7);
