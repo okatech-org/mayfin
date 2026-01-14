@@ -103,7 +103,7 @@ export default function LoginPage() {
           <img 
             src={logoMayfin} 
             alt="MayFin" 
-            className="h-20 w-auto object-contain"
+            className="h-16 w-auto object-contain"
           />
         </div>
 
@@ -133,7 +133,7 @@ export default function LoginPage() {
             <img 
               src={logoMayfin} 
               alt="MayFin" 
-              className="h-16 w-auto object-contain"
+              className="h-12 w-auto object-contain"
             />
           </div>
 
