@@ -11,7 +11,11 @@ import {
     ChevronUp,
     GitCompare,
     Clock,
-    FileText
+    FileText,
+    Download,
+    Pencil,
+    Check,
+    X as XIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -20,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 import { 
     AlertDialog,
     AlertDialogAction,
@@ -32,6 +37,9 @@ import {
     AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
 import { useAnalyseHistory, type AnalyseHistoryEntry, type ScoreComparison } from '@/hooks/useAnalyseHistory';
+import { generateSmartAnalysisPDF } from '@/lib/rapport-pdf-generator';
+import { toast } from 'sonner';
+import type { AnalysisResult } from '@/hooks/useDocumentAnalysis';
 
 interface AnalyseHistoryPanelProps {
     dossierId?: string;
@@ -114,14 +122,20 @@ function HistoryEntryCard({
     entry, 
     onDelete, 
     onSelect,
-    isDeleting 
+    onUpdateNotes,
+    isDeleting,
+    isUpdatingNotes
 }: { 
     entry: AnalyseHistoryEntry; 
     onDelete: () => void;
     onSelect?: () => void;
+    onUpdateNotes: (notes: string | null) => void;
     isDeleting: boolean;
+    isUpdatingNotes: boolean;
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isEditingNotes, setIsEditingNotes] = useState(false);
+    const [editedNotes, setEditedNotes] = useState(entry.notes || '');
 
     const scoreColor = entry.score_global >= 70 ? 'text-success' : entry.score_global >= 45 ? 'text-warning' : 'text-destructive';
     const recoBadge = entry.recommandation === 'FAVORABLE' 
@@ -130,7 +144,51 @@ function HistoryEntryCard({
             ? 'bg-destructive/20 text-destructive' 
             : 'bg-warning/20 text-warning';
 
-    const extractedData = entry.extracted_data as { entreprise?: { raisonSociale?: string } };
+    const extractedData = entry.extracted_data as { 
+        entreprise?: { raisonSociale?: string; siren?: string };
+        dirigeant?: { nom?: string; prenom?: string };
+        financement?: { montantDemande?: number };
+    };
+
+    const handleSaveNotes = () => {
+        onUpdateNotes(editedNotes.trim() || null);
+        setIsEditingNotes(false);
+    };
+
+    const handleCancelEdit = () => {
+        setEditedNotes(entry.notes || '');
+        setIsEditingNotes(false);
+    };
+
+    const handleExportPDF = () => {
+        try {
+            // Reconstruct AnalysisResult from history entry
+            const analysisResult: AnalysisResult = {
+                success: true,
+                data: extractedData as AnalysisResult['data'],
+                score: {
+                    global: entry.score_global,
+                    details: {
+                        solvabilite: entry.score_solvabilite || 0,
+                        rentabilite: entry.score_rentabilite || 0,
+                        structure: entry.score_structure || 0,
+                        activite: entry.score_activite || 0,
+                    }
+                },
+                recommandation: entry.recommandation as AnalysisResult['recommandation'],
+                seuilAccordable: entry.seuil_accordable || undefined,
+                analyseSectorielle: entry.analyse_sectorielle as unknown as AnalysisResult['analyseSectorielle'],
+                syntheseNarrative: entry.synthese_narrative as unknown as AnalysisResult['syntheseNarrative'],
+                modelsUsed: entry.models_used || [],
+            };
+            
+            generateSmartAnalysisPDF(analysisResult);
+            toast.success('PDF généré avec succès');
+        } catch (error) {
+            console.error('Erreur export PDF:', error);
+            toast.error('Erreur lors de la génération du PDF');
+        }
+    };
 
     return (
         <Card className="overflow-hidden">
@@ -205,13 +263,80 @@ function HistoryEntryCard({
                             </div>
                         )}
 
-                        {entry.notes && (
-                            <p className="text-sm text-muted-foreground bg-muted/30 p-2 rounded">
-                                {entry.notes}
-                            </p>
-                        )}
+                        {/* Notes section with edit capability */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-muted-foreground">Notes</span>
+                                {!isEditingNotes && (
+                                    <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => setIsEditingNotes(true)}
+                                        className="h-6 px-2"
+                                    >
+                                        <Pencil className="h-3 w-3 mr-1" />
+                                        {entry.notes ? 'Modifier' : 'Ajouter'}
+                                    </Button>
+                                )}
+                            </div>
+                            
+                            {isEditingNotes ? (
+                                <div className="space-y-2">
+                                    <Textarea
+                                        value={editedNotes}
+                                        onChange={(e) => setEditedNotes(e.target.value)}
+                                        placeholder="Ajoutez des notes..."
+                                        className="min-h-[80px] resize-none text-sm"
+                                        maxLength={500}
+                                    />
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs text-muted-foreground">
+                                            {editedNotes.length}/500
+                                        </span>
+                                        <div className="flex gap-2">
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm"
+                                                onClick={handleCancelEdit}
+                                                disabled={isUpdatingNotes}
+                                            >
+                                                <XIcon className="h-3 w-3 mr-1" />
+                                                Annuler
+                                            </Button>
+                                            <Button 
+                                                size="sm"
+                                                onClick={handleSaveNotes}
+                                                disabled={isUpdatingNotes}
+                                            >
+                                                <Check className="h-3 w-3 mr-1" />
+                                                {isUpdatingNotes ? 'Enregistrement...' : 'Enregistrer'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                entry.notes ? (
+                                    <p className="text-sm text-muted-foreground bg-muted/30 p-2 rounded">
+                                        {entry.notes}
+                                    </p>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground/50 italic">
+                                        Aucune note
+                                    </p>
+                                )
+                            )}
+                        </div>
 
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 pt-2">
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={handleExportPDF}
+                                className="flex-1"
+                            >
+                                <Download className="h-4 w-4 mr-2" />
+                                Export PDF
+                            </Button>
                             {onSelect && (
                                 <Button variant="outline" size="sm" onClick={onSelect} className="flex-1">
                                     <FileText className="h-4 w-4 mr-2" />
@@ -253,6 +378,8 @@ export function AnalyseHistoryPanel({ dossierId, onSelectAnalysis }: AnalyseHist
         isLoading, 
         deleteFromHistory, 
         isDeleting,
+        updateNotes,
+        isUpdatingNotes,
         getLatestComparison 
     } = useAnalyseHistory(dossierId);
 
@@ -324,7 +451,9 @@ export function AnalyseHistoryPanel({ dossierId, onSelectAnalysis }: AnalyseHist
                                 entry={entry}
                                 onDelete={() => deleteFromHistory(entry.id)}
                                 onSelect={onSelectAnalysis ? () => onSelectAnalysis(entry) : undefined}
+                                onUpdateNotes={(notes) => updateNotes({ id: entry.id, notes })}
                                 isDeleting={isDeleting}
+                                isUpdatingNotes={isUpdatingNotes}
                             />
                         ))}
                     </div>
