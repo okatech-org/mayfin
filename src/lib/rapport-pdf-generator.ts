@@ -600,6 +600,111 @@ export function generateSmartAnalysisPDF(
         }
     }
 
+    // ============ RATIOS FINANCIERS CLÉS ============
+    checkPageBreak(60);
+    y += 5;
+    addTitle('RATIOS FINANCIERS CLÉS', 12);
+    y += 3;
+
+    // Calculate ratios from available data
+    const tauxApportRatio = besoin?.tauxApport || 0;
+    const capaciteRemb = besoin?.capaciteRemboursement || 0;
+    const mensualiteEstimee = besoin?.mensualiteEstimee || 0;
+    
+    // Calculate DSCR (Debt Service Coverage Ratio)
+    const dscr = mensualiteEstimee > 0 ? (capaciteRemb / mensualiteEstimee) : 0;
+    
+    // Get financial data for ratios
+    const latestYear = data?.finances?.annees?.[0];
+    const ca = latestYear?.chiffreAffaires || 0;
+    const ebitda = latestYear?.ebitda || 0;
+    const capitauxPropres = latestYear?.capitauxPropres || 0;
+    const dettesFinancieres = latestYear?.dettesFinancieres || 0;
+    const totalActif = latestYear?.totalActif || 0;
+    
+    // Calculate additional ratios
+    const tauxEndettement = totalActif > 0 ? ((dettesFinancieres / totalActif) * 100) : 0;
+    const margeBrute = ca > 0 ? ((ebitda / ca) * 100) : 0;
+    const autonomieFinanciere = totalActif > 0 ? ((capitauxPropres / totalActif) * 100) : 0;
+
+    const ratiosData = [
+        ['Ratio', 'Valeur', 'Standard bancaire', 'Analyse'],
+        [
+            'Taux d\'apport',
+            formatPercentage(tauxApportRatio),
+            '> 20%',
+            getRatioStatus(tauxApportRatio, 20, true)
+        ],
+        [
+            'DSCR (Couverture dette)',
+            dscr > 0 ? dscr.toFixed(2) : '-',
+            '> 1,20',
+            dscr > 0 ? getDSCRStatus(dscr) : '-'
+        ],
+        [
+            'Taux d\'endettement',
+            tauxEndettement > 0 ? formatPercentage(tauxEndettement) : '-',
+            '< 70%',
+            tauxEndettement > 0 ? getRatioStatus(tauxEndettement, 70, false) : '-'
+        ],
+        [
+            'Marge EBITDA',
+            margeBrute > 0 ? formatPercentage(margeBrute) : '-',
+            '> 10%',
+            margeBrute > 0 ? getRatioStatus(margeBrute, 10, true) : '-'
+        ],
+        [
+            'Autonomie financière',
+            autonomieFinanciere > 0 ? formatPercentage(autonomieFinanciere) : '-',
+            '> 30%',
+            autonomieFinanciere > 0 ? getRatioStatus(autonomieFinanciere, 30, true) : '-'
+        ],
+        [
+            'Capacité de remboursement',
+            formatCurrencySpaced(capaciteRemb),
+            '-',
+            capaciteRemb > mensualiteEstimee ? '✓ Suffisante' : '⚠ À vérifier'
+        ],
+    ];
+
+    autoTable(doc, {
+        startY: y,
+        head: [ratiosData[0]],
+        body: ratiosData.slice(1),
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: MAYFIN_COLORS.green as [number, number, number], textColor: 255 },
+        alternateRowStyles: { fillColor: MAYFIN_COLORS.lightGrey as [number, number, number] },
+        columnStyles: {
+            0: { fontStyle: 'bold', cellWidth: 45 },
+            1: { halign: 'center', cellWidth: 35 },
+            2: { halign: 'center', cellWidth: 35 },
+            3: { halign: 'center' }
+        },
+        didParseCell: (data) => {
+            // Color the status column based on content
+            if (data.column.index === 3 && data.section === 'body') {
+                const text = String(data.cell.raw);
+                if (text.includes('✓')) {
+                    data.cell.styles.textColor = MAYFIN_COLORS.successGreen;
+                } else if (text.includes('⚠')) {
+                    data.cell.styles.textColor = MAYFIN_COLORS.warningOrange;
+                } else if (text.includes('✗')) {
+                    data.cell.styles.textColor = MAYFIN_COLORS.alertRed;
+                }
+            }
+        }
+    });
+    y = getAutoTableFinalY(doc) + 8;
+
+    // Add legend
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(128, 128, 128);
+    doc.text('DSCR = Capacité de remboursement / Mensualité estimée • Standards conformes aux recommandations Bâle III/IV', margin, y);
+    doc.setTextColor(0, 0, 0);
+    y += 6;
+
     // ============ PAGE 2: ANALYSE DU BESOIN CLIENT ============
     doc.addPage();
     y = margin;
