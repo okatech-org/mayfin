@@ -810,8 +810,11 @@ export function generateSmartAnalysisPDF(
     y += 3;
 
     if (data?.finances?.annees && data.finances.annees.length > 0) {
+        // Sort years in ascending order for display
+        const sortedYears = [...data.finances.annees].sort((a, b) => (a.annee || 0) - (b.annee || 0));
+        
         const financeHeaders = ['Exercice', 'CA', 'Résultat Net', 'EBITDA', 'Capitaux Propres', 'Trésorerie'];
-        const financeRows = data.finances.annees.map(a => [
+        const financeRows = sortedYears.map(a => [
             String(a.annee || '-'),
             formatCurrencySpaced(a.chiffreAffaires),
             formatCurrencySpaced(a.resultatNet),
@@ -826,10 +829,145 @@ export function generateSmartAnalysisPDF(
             body: financeRows,
             margin: { left: margin, right: margin },
             styles: { fontSize: 8, cellPadding: 2 },
-            headStyles: { fillColor: [51, 102, 153], textColor: 255 },
-            alternateRowStyles: { fillColor: [248, 250, 252] },
+            headStyles: { fillColor: MAYFIN_COLORS.green as [number, number, number], textColor: 255 },
+            alternateRowStyles: { fillColor: MAYFIN_COLORS.lightGrey as [number, number, number] },
         });
-        y = getAutoTableFinalY(doc) + 6;
+        y = getAutoTableFinalY(doc) + 8;
+    }
+
+    // ============ PRÉVISIONNELS SUR 3 ANS ============
+    checkPageBreak(50);
+    addSubtitle('Compte de résultat prévisionnel');
+
+    // Check if we have multi-year data to build forecasts
+    if (data?.finances?.annees && data.finances.annees.length >= 2) {
+        const sortedYears = [...data.finances.annees].sort((a, b) => (a.annee || 0) - (b.annee || 0));
+        const lastYear = sortedYears[sortedYears.length - 1];
+        const prevYear = sortedYears[sortedYears.length - 2];
+        
+        // Calculate growth rates
+        const caGrowth = prevYear?.chiffreAffaires && lastYear?.chiffreAffaires 
+            ? (lastYear.chiffreAffaires - prevYear.chiffreAffaires) / prevYear.chiffreAffaires 
+            : 0.05; // Default 5% growth
+        
+        const baseYear = lastYear?.annee || new Date().getFullYear();
+        const baseCA = lastYear?.chiffreAffaires || 0;
+        const baseEBITDA = lastYear?.ebitda || 0;
+        const baseRN = lastYear?.resultatNet || 0;
+        
+        // Project 3 years forward with calculated or assumed growth
+        const growthRate = Math.min(Math.max(caGrowth, 0.03), 0.25); // Clamp between 3% and 25%
+        
+        const previsionHeaders = ['Indicateurs', `Année ${baseYear + 1}`, `Année ${baseYear + 2}`, `Année ${baseYear + 3}`];
+        const previsionRows = [
+            [
+                'Chiffre d\'affaires',
+                formatCurrencySpaced(baseCA * (1 + growthRate)),
+                formatCurrencySpaced(baseCA * Math.pow(1 + growthRate, 2)),
+                formatCurrencySpaced(baseCA * Math.pow(1 + growthRate, 3)),
+            ],
+            [
+                'EBITDA',
+                formatCurrencySpaced(baseEBITDA * (1 + growthRate * 0.8)),
+                formatCurrencySpaced(baseEBITDA * Math.pow(1 + growthRate * 0.8, 2)),
+                formatCurrencySpaced(baseEBITDA * Math.pow(1 + growthRate * 0.8, 3)),
+            ],
+            [
+                'Résultat net',
+                formatCurrencySpaced(baseRN * (1 + growthRate * 0.7)),
+                formatCurrencySpaced(baseRN * Math.pow(1 + growthRate * 0.7, 2)),
+                formatCurrencySpaced(baseRN * Math.pow(1 + growthRate * 0.7, 3)),
+            ],
+            [
+                'Évolution CA',
+                `+${(growthRate * 100).toFixed(1)}%`,
+                `+${(growthRate * 100).toFixed(1)}%`,
+                `+${(growthRate * 100).toFixed(1)}%`,
+            ],
+        ];
+
+        autoTable(doc, {
+            startY: y,
+            head: [previsionHeaders],
+            body: previsionRows,
+            margin: { left: margin, right: margin },
+            styles: { fontSize: 8, cellPadding: 3 },
+            headStyles: { fillColor: MAYFIN_COLORS.green as [number, number, number], textColor: 255 },
+            alternateRowStyles: { fillColor: MAYFIN_COLORS.lightGrey as [number, number, number] },
+            columnStyles: {
+                0: { fontStyle: 'bold', cellWidth: 40 },
+                1: { halign: 'right' },
+                2: { halign: 'right' },
+                3: { halign: 'right' },
+            },
+        });
+        y = getAutoTableFinalY(doc) + 5;
+
+        // Add projection note
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(128, 128, 128);
+        doc.text(`Projections basées sur le taux de croissance historique de ${(growthRate * 100).toFixed(1)}% - À titre indicatif`, margin, y);
+        doc.setTextColor(0, 0, 0);
+        y += 6;
+    } else if (data?.finances?.annees && data.finances.annees.length === 1) {
+        // Single year available - show simple projection
+        const year = data.finances.annees[0];
+        const baseYear = year?.annee || new Date().getFullYear();
+        const growthRate = 0.05; // Assume 5% growth
+        
+        const previsionHeaders = ['Indicateurs', `Année ${baseYear + 1}`, `Année ${baseYear + 2}`, `Année ${baseYear + 3}`];
+        const previsionRows = [
+            [
+                'Chiffre d\'affaires',
+                formatCurrencySpaced((year?.chiffreAffaires || 0) * (1 + growthRate)),
+                formatCurrencySpaced((year?.chiffreAffaires || 0) * Math.pow(1 + growthRate, 2)),
+                formatCurrencySpaced((year?.chiffreAffaires || 0) * Math.pow(1 + growthRate, 3)),
+            ],
+            [
+                'EBITDA',
+                formatCurrencySpaced((year?.ebitda || 0) * (1 + growthRate)),
+                formatCurrencySpaced((year?.ebitda || 0) * Math.pow(1 + growthRate, 2)),
+                formatCurrencySpaced((year?.ebitda || 0) * Math.pow(1 + growthRate, 3)),
+            ],
+            [
+                'Résultat net',
+                formatCurrencySpaced((year?.resultatNet || 0) * (1 + growthRate)),
+                formatCurrencySpaced((year?.resultatNet || 0) * Math.pow(1 + growthRate, 2)),
+                formatCurrencySpaced((year?.resultatNet || 0) * Math.pow(1 + growthRate, 3)),
+            ],
+        ];
+
+        autoTable(doc, {
+            startY: y,
+            head: [previsionHeaders],
+            body: previsionRows,
+            margin: { left: margin, right: margin },
+            styles: { fontSize: 8, cellPadding: 3 },
+            headStyles: { fillColor: MAYFIN_COLORS.green as [number, number, number], textColor: 255 },
+            alternateRowStyles: { fillColor: MAYFIN_COLORS.lightGrey as [number, number, number] },
+            columnStyles: {
+                0: { fontStyle: 'bold', cellWidth: 40 },
+                1: { halign: 'right' },
+                2: { halign: 'right' },
+                3: { halign: 'right' },
+            },
+        });
+        y = getAutoTableFinalY(doc) + 5;
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(128, 128, 128);
+        doc.text('Projections basées sur une hypothèse de croissance de 5% par an - À titre indicatif', margin, y);
+        doc.setTextColor(0, 0, 0);
+        y += 6;
+    } else {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(128, 128, 128);
+        doc.text('Données financières insuffisantes pour générer des prévisionnels', margin, y);
+        doc.setTextColor(0, 0, 0);
+        y += 8;
     }
 
     // Funding request - compact
