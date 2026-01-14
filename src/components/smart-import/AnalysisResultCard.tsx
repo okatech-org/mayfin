@@ -20,7 +20,9 @@ import {
     Eye,
     RefreshCw,
     Save,
-    FileType
+    FileType,
+    ExternalLink,
+    Link2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -162,6 +164,92 @@ function DataRow({ label, value }: { label: string; value?: string | number | nu
 function formatCurrency(value?: number): string {
     if (!value) return '-';
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
+}
+
+// Component to display clickable sources
+function SourcesSection({ sources }: { sources: string[] }) {
+    const [showAll, setShowAll] = useState(false);
+    const displayedSources = showAll ? sources : sources.slice(0, 5);
+    
+    // Parse source to get domain and clean URL
+    const parseSource = (src: string): { domain: string; url: string; isValid: boolean } => {
+        try {
+            const url = new URL(src);
+            return { 
+                domain: url.hostname.replace('www.', ''), 
+                url: src,
+                isValid: true
+            };
+        } catch {
+            // If not a valid URL, display as text
+            return { domain: src, url: '', isValid: false };
+        }
+    };
+
+    return (
+        <div className="mt-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-900/50 border">
+            <div className="flex items-center gap-2 mb-3">
+                <Link2 className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-foreground">
+                    Sources de l'analyse ({sources.length})
+                </span>
+            </div>
+            
+            <div className="space-y-2">
+                {displayedSources.map((src, i) => {
+                    const parsed = parseSource(src);
+                    
+                    if (!parsed.isValid) {
+                        return (
+                            <div key={i} className="text-xs text-muted-foreground flex items-center gap-2">
+                                <span className="text-muted-foreground/50">•</span>
+                                <span className="truncate">{parsed.domain}</span>
+                            </div>
+                        );
+                    }
+                    
+                    return (
+                        <a
+                            key={i}
+                            href={parsed.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex items-center gap-2 p-2 rounded-md hover:bg-primary/5 transition-colors"
+                        >
+                            <ExternalLink className="h-3 w-3 text-primary flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                                <span className="text-xs font-medium text-primary group-hover:underline block truncate">
+                                    {parsed.domain}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground truncate block">
+                                    {parsed.url.length > 80 ? parsed.url.substring(0, 80) + '...' : parsed.url}
+                                </span>
+                            </div>
+                        </a>
+                    );
+                })}
+            </div>
+            
+            {sources.length > 5 && (
+                <button
+                    onClick={() => setShowAll(!showAll)}
+                    className="mt-3 text-xs text-primary hover:underline flex items-center gap-1"
+                >
+                    {showAll ? (
+                        <>
+                            <ChevronUp className="h-3 w-3" />
+                            Afficher moins
+                        </>
+                    ) : (
+                        <>
+                            <ChevronDown className="h-3 w-3" />
+                            Voir les {sources.length - 5} autres sources
+                        </>
+                    )}
+                </button>
+            )}
+        </div>
+    );
 }
 
 export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCreating, isDemoMode }: AnalysisResultCardProps) {
@@ -520,33 +608,7 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
                             )}
 
                             {sectorData.sources && sectorData.sources.length > 0 && (
-                                <div className="mt-3">
-                                    <p className="text-xs text-muted-foreground mb-1">Sources ({sectorData.sources.length})</p>
-                                    <div className="flex flex-wrap gap-1">
-                                        {sectorData.sources.slice(0, 3).map((src, i) => {
-                                            try {
-                                                return (
-                                                    <a 
-                                                        key={i} 
-                                                        href={src} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer"
-                                                        className="text-xs text-primary hover:underline truncate max-w-[200px]"
-                                                    >
-                                                        {new URL(src).hostname}
-                                                    </a>
-                                                );
-                                            } catch {
-                                                return null;
-                                            }
-                                        })}
-                                        {sectorData.sources.length > 3 && (
-                                            <span className="text-xs text-muted-foreground">
-                                                +{sectorData.sources.length - 3} autres
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
+                                <SourcesSection sources={sectorData.sources} />
                             )}
                         </>
                     ) : (
