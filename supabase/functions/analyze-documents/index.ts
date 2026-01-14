@@ -118,6 +118,48 @@ class ApiError extends Error {
   }
 }
 
+// ============== FRENCH SOURCE FILTERING ==============
+// French domain whitelist for source filtering  
+const FRENCH_DOMAIN_PATTERNS = [
+  '.fr',
+  '.gouv.fr',
+  'insee.',
+  'banque-france.',
+  'bpifrance.',
+  'legifrance.',
+  'service-public.',
+  'economie.gouv.',
+  'travail.gouv.',
+  'urssaf.',
+  'impots.gouv.',
+  'infogreffe.',
+  'societe.com',
+  'pappers.',
+  'altares.',
+  'coface.fr',
+  'lesechos.',
+  'bfmtv.',
+  'lefigaro.',
+  'lemonde.',
+  'latribune.',
+  'challenges.',
+  'capital.',
+  'europa.eu',
+  'eurostat.',
+  'oecd.',
+  'ocde.',
+];
+
+// Filter sources to keep only French/EU relevant ones
+function filterFrenchSources(sources: string[]): string[] {
+  if (!sources || !Array.isArray(sources)) return [];
+
+  return sources.filter(source => {
+    const lowerSource = source.toLowerCase();
+    return FRENCH_DOMAIN_PATTERNS.some(pattern => lowerSource.includes(pattern));
+  });
+}
+
 // ============== TYPES ==============
 interface ExtractedData {
   entreprise: {
@@ -401,23 +443,26 @@ RÉPONDS EN JSON :
   "seuilAccordable": number
 }`;
 
-// Enhanced Perplexity prompts for deeper sector analysis
-const PERPLEXITY_MARKET_CONTEXT_PROMPT = `Tu es un analyste économique spécialisé dans le financement professionnel en France.
+// Enhanced Perplexity prompts for deeper sector analysis - FRANCE FOCUS
+const PERPLEXITY_MARKET_CONTEXT_PROMPT = `Tu es un analyste économique spécialisé dans le financement professionnel en FRANCE pour des banques françaises.
+
+CONTEXTE IMPORTANT : Cette analyse est destinée à une BANQUE FRANÇAISE pour l'octroi de crédits.
+Utilise UNIQUEMENT des sources françaises officielles (INSEE, Banque de France, BPI France, ministères).
 
 ENTREPRISE À ANALYSER:
 - Secteur d'activité : {SECTEUR}
 - Code NAF/APE : {CODE_NAF}
-- Localisation : {LOCALISATION}
+- Localisation : {LOCALISATION} (France)
 - Raison sociale : {RAISON_SOCIALE}
 
-RECHERCHE APPROFONDIE - CONTEXTE DE MARCHÉ 2024-2026:
+RECHERCHE APPROFONDIE - CONTEXTE DU MARCHÉ FRANÇAIS 2024-2026:
 
-1. État actuel du secteur en France et dans la région
-2. Indicateurs macroéconomiques impactants (PIB, emploi, consommation)
-3. Évolutions réglementaires récentes et à venir
-4. Investissements et financement dans le secteur
-5. Taux de défaillance sectoriel si disponible
-6. Perspectives économiques court et moyen terme
+1. État actuel du secteur en FRANCE métropolitaine
+2. Indicateurs macroéconomiques français (PIB France, emploi France, consommation France)
+3. Évolutions réglementaires françaises récentes et à venir (loi de finances, URSSAF)
+4. Investissements et financement dans le secteur en France
+5. Taux de défaillance sectoriel français (Banque de France, Altares)
+6. Perspectives économiques françaises court et moyen terme
 
 Réponds en JSON:
 {
@@ -430,24 +475,26 @@ Réponds en JSON:
   "reglementation": ["évolution1", "évolution2", ...]
 }`;
 
-const PERPLEXITY_RISKS_PROMPT = `Tu es un analyste de risques pour le financement d'entreprises.
+const PERPLEXITY_RISKS_PROMPT = `Tu es un analyste de risques pour le financement d'entreprises FRANÇAISES.
+
+CONTEXTE : Analyse pour une BANQUE FRANÇAISE. Focus exclusif sur le marché français.
 
 ENTREPRISE:
 - Secteur : {SECTEUR}
 - Code NAF : {CODE_NAF}
-- Région : {LOCALISATION}
+- Région : {LOCALISATION} (France)
 
-ANALYSE DES RISQUES SECTORIELS (6-8 risques détaillés):
+ANALYSE DES RISQUES SECTORIELS EN FRANCE (6-8 risques détaillés):
 
-Catégories à couvrir:
-1. Risques économiques et conjoncturels
-2. Risques réglementaires et conformité
-3. Risques technologiques (disruption, obsolescence)
-4. Risques de marché (concurrence, prix, demande)
-5. Risques environnementaux et ESG
-6. Risques opérationnels spécifiques au secteur
-7. Risques liés aux coûts (énergie, matières premières, main d'œuvre)
-8. Risques de dépendance (clients, fournisseurs)
+Catégories à couvrir (contexte français):
+1. Risques économiques français et conjoncturels
+2. Risques réglementaires français (loi de finances, URSSAF, normes)
+3. Risques technologiques (disruption du secteur en France)
+4. Risques de marché français (concurrence locale, demande domestique)
+5. Risques environnementaux/ESG selon normes françaises et UE
+6. Risques opérationnels spécifiques au secteur en France
+7. Risques liés aux coûts français (énergie, matières premières, SMIC)
+8. Risques de dépendance (clients, fournisseurs français)
 
 Pour chaque risque: description précise + niveau d'impact (élevé/moyen/faible)
 
@@ -460,24 +507,26 @@ Réponds en JSON:
   "risquePrincipal": "Le risque le plus critique à surveiller"
 }`;
 
-const PERPLEXITY_OPPORTUNITIES_PROMPT = `Tu es un conseiller en développement d'entreprise.
+const PERPLEXITY_OPPORTUNITIES_PROMPT = `Tu es un conseiller en développement d'entreprise en FRANCE.
+
+CONTEXTE : Analyse pour une BANQUE FRANÇAISE. Focus exclusif sur les opportunités en France.
 
 ENTREPRISE:
 - Secteur : {SECTEUR}
 - Code NAF : {CODE_NAF}
-- Région : {LOCALISATION}
+- Région : {LOCALISATION} (France)
 
-ANALYSE DES OPPORTUNITÉS (6-8 opportunités détaillées):
+ANALYSE DES OPPORTUNITÉS EN FRANCE (6-8 opportunités détaillées):
 
-Axes à explorer:
-1. Leviers de croissance identifiés dans le secteur
-2. Innovations et nouvelles technologies applicables
-3. Aides, subventions et financements publics disponibles (France 2030, BPI, régionales)
-4. Tendances de consommation favorables
-5. Partenariats stratégiques possibles
-6. Diversification et nouveaux marchés
-7. Transition écologique et RSE comme avantage compétitif
-8. Digitalisation et optimisation des processus
+Axes à explorer (contexte français):
+1. Leviers de croissance identifiés dans le secteur en France
+2. Innovations et technologies applicables au marché français
+3. Aides et subventions françaises (France 2030, BPI France, subventions régionales)
+4. Tendances de consommation favorables en France
+5. Partenariats stratégiques possibles avec acteurs français
+6. Diversification et nouveaux marchés en France/Europe
+7. Transition écologique et RSE selon normes françaises
+8. Digitalisation et France Num
 
 Pour chaque opportunité: description + potentiel (fort/moyen/modéré)
 
@@ -490,22 +539,24 @@ Réponds en JSON:
   "opportunitePrincipale": "L'opportunité la plus prometteuse"
 }`;
 
-const PERPLEXITY_BENCHMARK_PROMPT = `Tu es un analyste concurrentiel spécialisé.
+const PERPLEXITY_BENCHMARK_PROMPT = `Tu es un analyste concurrentiel spécialisé sur le marché FRANÇAIS.
+
+CONTEXTE : Analyse pour une BANQUE FRANÇAISE. Benchmark limité au marché français.
 
 ENTREPRISE:
 - Secteur : {SECTEUR}
 - Code NAF : {CODE_NAF}
-- Région : {LOCALISATION}
+- Région : {LOCALISATION} (France)
 
-BENCHMARK CONCURRENTIEL APPROFONDI:
+BENCHMARK CONCURRENTIEL FRANÇAIS APPROFONDI:
 
-1. Structure du marché (fragmentation, acteurs majeurs)
-2. Marges moyennes du secteur (marge brute, marge nette)
-3. Ratios financiers types (BFR, endettement, CAF)
-4. Barrières à l'entrée et facteurs clés de succès
-5. Positionnement des leaders vs PME/TPE
-6. Tendances de consolidation ou fragmentation
-7. Stratégies gagnantes observées
+1. Structure du marché français (fragmentation, acteurs majeurs en France)
+2. Marges moyennes du secteur en France (marge brute, marge nette)
+3. Ratios financiers types des entreprises françaises (BFR, endettement, CAF)
+4. Barrières à l'entrée et facteurs clés de succès en France
+5. Positionnement des leaders français vs PME/TPE françaises
+6. Tendances de consolidation ou fragmentation du marché français
+7. Stratégies gagnantes observées en France
 
 Réponds en JSON:
 {
@@ -644,7 +695,7 @@ async function callLovableAI(
   temperature: number = 0.2
 ): Promise<string> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  
+
   if (!apiKey) {
     throw new ApiError("Lovable AI", "LOVABLE_API_KEY non configurée", {
       suggestion: "La clé Lovable AI devrait être auto-provisionnée. Contactez le support."
@@ -686,7 +737,7 @@ async function callLovableAI(
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`[Lovable AI - ${model}] Erreur:`, response.status, errorText);
-    
+
     if (response.status === 429) {
       throw new ApiError("Lovable AI", "Limite de requêtes atteinte", {
         statusCode: 429,
@@ -699,7 +750,7 @@ async function callLovableAI(
         suggestion: "Ajoutez des crédits dans Settings → Workspace → Usage"
       });
     }
-    
+
     throw new ApiError("Lovable AI", `Erreur API (${response.status})`, {
       statusCode: response.status,
       details: errorText.substring(0, 200),
@@ -742,12 +793,12 @@ async function callGeminiOCR(files: Array<{ type: string; data: string }>): Prom
       suggestion: "Vérifiez que les documents sont lisibles"
     });
   }
-  
+
   // Parse JSON from response
   let jsonStr = text;
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) jsonStr = jsonMatch[1].trim();
-  
+
   try {
     const parsed = JSON.parse(jsonStr);
     console.log("[Gemini 2.5 Flash] ✅ Extraction OCR terminée avec succès");
@@ -776,11 +827,11 @@ async function callOpenAIAnalysis(extractedData: ExtractedData): Promise<{
     prompt,
     0.2
   );
-  
+
   let jsonStr = text;
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) jsonStr = jsonMatch[1].trim();
-  
+
   try {
     const parsed = JSON.parse(jsonStr);
     console.log("[GPT-5] ✅ Analyse financière terminée avec succès");
@@ -825,9 +876,9 @@ async function callPerplexityMarket(
         body: JSON.stringify({
           model: "sonar-pro",
           messages: [
-            { 
-              role: "system", 
-              content: "Tu es un analyste économique expert. Fournis des analyses précises, chiffrées et sourcées. Réponds uniquement en JSON valide sans markdown." 
+            {
+              role: "system",
+              content: "Tu es un analyste économique expert. Fournis des analyses précises, chiffrées et sourcées. Réponds uniquement en JSON valide sans markdown."
             },
             { role: "user", content: prompt }
           ],
@@ -856,7 +907,7 @@ async function callPerplexityMarket(
 
   // Execute all queries in parallel for maximum efficiency
   console.log("[Perplexity] Launching 4 parallel deep research queries...");
-  
+
   const [contextResult, risksResult, oppsResult, benchResult] = await Promise.all([
     callPerplexity(replacePlaceholders(PERPLEXITY_MARKET_CONTEXT_PROMPT), "Context"),
     callPerplexity(replacePlaceholders(PERPLEXITY_RISKS_PROMPT), "Risks"),
@@ -893,11 +944,11 @@ async function callPerplexityMarket(
 
   // Build enriched context
   let contexteMarche = "";
-  
+
   if (contextData.contexteMarche) {
     contexteMarche = String(contextData.contexteMarche);
   }
-  
+
   // Add key indicators if available
   const indicateurs = contextData.indicateursClés as Record<string, string> | undefined;
   if (indicateurs) {
@@ -909,7 +960,7 @@ async function callPerplexityMarket(
       contexteMarche += ` Indicateurs clés: ${indicateursList}.`;
     }
   }
-  
+
   // Add regulation info
   if (Array.isArray(contextData.reglementation) && contextData.reglementation.length > 0) {
     contexteMarche += ` Évolutions réglementaires: ${(contextData.reglementation as string[]).slice(0, 3).join("; ")}.`;
@@ -925,7 +976,7 @@ async function callPerplexityMarket(
       return `${desc}${impact}`;
     }).filter(Boolean);
   }
-  
+
   // Add principal risk if available
   if (risksData.risquePrincipal && typeof risksData.risquePrincipal === 'string') {
     if (!risquesSecteur.includes(risksData.risquePrincipal)) {
@@ -943,7 +994,7 @@ async function callPerplexityMarket(
       return `${desc}${potentiel}`;
     }).filter(Boolean);
   }
-  
+
   // Add principal opportunity if available
   if (oppsData.opportunitePrincipale && typeof oppsData.opportunitePrincipale === 'string') {
     if (!opportunites.includes(oppsData.opportunitePrincipale)) {
@@ -953,11 +1004,11 @@ async function callPerplexityMarket(
 
   // Build enriched benchmark
   let benchmarkConcurrents = "";
-  
+
   if (benchData.structureMarche) {
     benchmarkConcurrents = String(benchData.structureMarche);
   }
-  
+
   // Add margins if available
   const marges = benchData.margesMoyennes as Record<string, string> | undefined;
   if (marges) {
@@ -969,12 +1020,12 @@ async function callPerplexityMarket(
       benchmarkConcurrents += ` Marges sectorielles moyennes: ${margesList}.`;
     }
   }
-  
+
   // Add success factors
   if (Array.isArray(benchData.facteursSucces) && benchData.facteursSucces.length > 0) {
     benchmarkConcurrents += ` Facteurs clés de succès: ${(benchData.facteursSucces as string[]).slice(0, 4).join(", ")}.`;
   }
-  
+
   if (benchData.positionnementType) {
     benchmarkConcurrents += ` ${benchData.positionnementType}`;
   }
@@ -985,14 +1036,16 @@ async function callPerplexityMarket(
     return undefined;
   }
 
-  console.log(`[Perplexity] ✅ Enhanced analysis complete: ${risquesSecteur.length} risks, ${opportunites.length} opportunities, ${allSources.size} sources`);
+  // Filter to keep only French/EU sources
+  const filteredSources = filterFrenchSources(Array.from(allSources));
+  console.log(`[Perplexity] ✅ Enhanced analysis complete: ${risquesSecteur.length} risks, ${opportunites.length} opportunities, ${allSources.size} raw sources, ${filteredSources.length} French sources retained`);
 
   return {
-    contexteMarche: contexteMarche || `Analyse du secteur ${secteur} en cours d'enrichissement.`,
-    risquesSecteur: risquesSecteur.length > 0 ? risquesSecteur : ["Données de risques en cours de collecte"],
-    opportunites: opportunites.length > 0 ? opportunites : ["Données d'opportunités en cours de collecte"],
-    benchmarkConcurrents: benchmarkConcurrents || "Benchmark concurrentiel en cours d'analyse.",
-    sources: Array.from(allSources)
+    contexteMarche: contexteMarche || `Analyse du secteur ${secteur} en France en cours d'enrichissement.`,
+    risquesSecteur: risquesSecteur.length > 0 ? risquesSecteur : ["Données de risques du marché français en cours de collecte"],
+    opportunites: opportunites.length > 0 ? opportunites : ["Données d'opportunités en France en cours de collecte"],
+    benchmarkConcurrents: benchmarkConcurrents || "Benchmark concurrentiel français en cours d'analyse.",
+    sources: filteredSources
   };
 }
 
@@ -1050,7 +1103,7 @@ async function analyzeClientNeed(
     let jsonStr = text;
     const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (jsonMatch) jsonStr = jsonMatch[1].trim();
-    
+
     const parsed = JSON.parse(jsonStr);
     console.log("[GPT-5] ✅ Analyse du besoin client terminée");
     return parsed;
@@ -1070,52 +1123,52 @@ function calculateFallbackBesoinAnalysis(
   const duree = financement.dureeEnMois || 60;
   const objetFinancement = financement.objetFinancement?.toLowerCase() || "";
   const typeInvest = financement.typeInvestissement || detectInvestmentType(objetFinancement);
-  
+
   // Calculer taux d'apport
   const tauxApport = montantDemande > 0 ? (apportClient / montantDemande) * 100 : 0;
   const montantFinance = montantDemande - apportClient;
-  
+
   // Calculer mensualité estimée (approximation avec taux à 5%)
   const tauxMensuel = 0.05 / 12;
-  const mensualiteEstimee = montantFinance > 0 ? 
+  const mensualiteEstimee = montantFinance > 0 ?
     Math.round(montantFinance * (tauxMensuel * Math.pow(1 + tauxMensuel, duree)) / (Math.pow(1 + tauxMensuel, duree) - 1)) : 0;
-  
+
   // Calculer capacité de remboursement
   const dernierExercice = data.finances?.annees?.[data.finances.annees.length - 1];
   const ebitdaMensuel = (dernierExercice?.ebitda || dernierExercice?.resultatNet || 0) / 12;
   const capaciteRemboursement = Math.round(ebitdaMensuel * 0.25); // Max 25% de l'EBITDA mensuel
-  
+
   // Adequation besoin
   let adequationBesoin = 70;
   const alertes: string[] = [];
   const recommandationsStructuration: string[] = [];
-  
+
   if (mensualiteEstimee > capaciteRemboursement) {
     adequationBesoin -= 30;
     alertes.push(`Mensualité estimée (${mensualiteEstimee.toLocaleString('fr-FR')} €) supérieure à la capacité de remboursement (${capaciteRemboursement.toLocaleString('fr-FR')} €)`);
     recommandationsStructuration.push("Allonger la durée de financement pour réduire les mensualités");
     recommandationsStructuration.push("Augmenter l'apport personnel");
   }
-  
+
   if (typeInvest === 'vehicule' && tauxApport < 10) {
     alertes.push("Apport insuffisant pour un véhicule (recommandé: minimum 10%)");
     recommandationsStructuration.push("Prévoir un apport minimum de 10% pour un véhicule");
   }
-  
+
   if (typeInvest === 'immobilier' && tauxApport < 20) {
     alertes.push("Apport insuffisant pour un bien immobilier (recommandé: minimum 20%)");
     recommandationsStructuration.push("Prévoir un apport minimum de 20% pour l'immobilier");
   }
-  
+
   if (montantDemande > financialAnalysis.seuilAccordable) {
     adequationBesoin -= 20;
     alertes.push(`Montant demandé (${montantDemande.toLocaleString('fr-FR')} €) supérieur au seuil accordable (${financialAnalysis.seuilAccordable.toLocaleString('fr-FR')} €)`);
     recommandationsStructuration.push(`Réduire le montant demandé à ${financialAnalysis.seuilAccordable.toLocaleString('fr-FR')} € maximum`);
   }
-  
+
   // Recommandation produit selon le type d'investissement
   const produitRecommande = getProductRecommendation(typeInvest, montantFinance, duree);
-  
+
   return {
     typeInvestissement: financement.descriptionBien || objetFinancement || "Non précisé",
     categorieInvestissement: typeInvest as BesoinAnalyse['categorieInvestissement'],
@@ -1125,7 +1178,7 @@ function calculateFallbackBesoinAnalysis(
     mensualiteEstimee,
     capaciteRemboursement,
     adequationBesoin: Math.max(0, Math.min(100, adequationBesoin)),
-    justificationAdequation: alertes.length === 0 
+    justificationAdequation: alertes.length === 0
       ? "Le besoin est cohérent avec la capacité financière de l'entreprise"
       : "Des ajustements sont recommandés pour optimiser le financement",
     produitRecommande,
@@ -1140,7 +1193,7 @@ function detectInvestmentType(objet: string): string {
   const immobilierKeywords = ['immobilier', 'local', 'bureau', 'entrepôt', 'entrepot', 'terrain', 'bâtiment', 'batiment'];
   const bfrKeywords = ['bfr', 'trésorerie', 'tresorerie', 'stock', 'fonds de roulement'];
   const infoKeywords = ['informatique', 'ordinateur', 'serveur', 'logiciel', 'digital', 'numérique', 'numerique'];
-  
+
   if (vehiculeKeywords.some(k => objet.includes(k))) return 'vehicule';
   if (materielKeywords.some(k => objet.includes(k))) return 'materiel';
   if (immobilierKeywords.some(k => objet.includes(k))) return 'immobilier';
@@ -1174,7 +1227,7 @@ function getProductRecommendation(type: string, montant: number, duree: number):
           raison: "Si le client souhaite être propriétaire à terme ou pour un véhicule d'occasion"
         }
       };
-      
+
     case 'materiel':
       return {
         nom: "Crédit-bail mobilier",
@@ -1196,7 +1249,7 @@ function getProductRecommendation(type: string, montant: number, duree: number):
           raison: "Pour un matériel très spécifique ou si la propriété immédiate est requise"
         }
       };
-      
+
     case 'immobilier':
       return {
         nom: "Crédit-bail immobilier",
@@ -1218,7 +1271,7 @@ function getProductRecommendation(type: string, montant: number, duree: number):
           raison: "Si le client veut être propriétaire directement avec des taux potentiellement plus bas"
         }
       };
-      
+
     case 'bfr':
       return {
         nom: "Ligne de crédit / Facilité de caisse",
@@ -1240,7 +1293,7 @@ function getProductRecommendation(type: string, montant: number, duree: number):
           raison: "Si l'entreprise a un poste clients important, l'affacturage permet de financer le BFR sur les créances"
         }
       };
-      
+
     case 'informatique':
       return {
         nom: "Location financière évolutive",
@@ -1262,7 +1315,7 @@ function getProductRecommendation(type: string, montant: number, duree: number):
           raison: "Si l'entreprise souhaite amortir le matériel sur une longue période"
         }
       };
-      
+
     default:
       return {
         nom: "Prêt professionnel",
@@ -1302,10 +1355,10 @@ function calculateFallbackScore(data: ExtractedData): {
   };
 
   const annees = data.finances?.annees || [];
-  
+
   if (annees.length > 0) {
     const dernierExercice = annees[annees.length - 1];
-    
+
     // Rentabilité
     if (dernierExercice.chiffreAffaires && dernierExercice.resultatNet) {
       const margeNette = dernierExercice.resultatNet / dernierExercice.chiffreAffaires;
@@ -1360,14 +1413,14 @@ function calculateFallbackScore(data: ExtractedData): {
     details.activite * 0.20
   );
 
-  const recommandation: AnalysisResult["recommandation"] = 
+  const recommandation: AnalysisResult["recommandation"] =
     global >= 70 ? "FAVORABLE" : global >= 45 ? "RESERVES" : "DEFAVORABLE";
 
   // Calculate threshold
   const dernierExercice = annees[annees.length - 1] || {};
   const ca = dernierExercice.chiffreAffaires || 0;
   const ebitda = dernierExercice.ebitda || dernierExercice.resultatNet || 0;
-  
+
   let facteur = global >= 80 ? 4 : global >= 70 ? 3 : global >= 60 ? 2 : global >= 45 ? 1.5 : 1;
   const seuilEbitda = ebitda * facteur;
   const plafondCa = ca * 0.25;
@@ -1392,10 +1445,10 @@ serve(async (req) => {
     console.log("📋 Requête de diagnostic reçue");
     const diagnostic = runDiagnostics();
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         diagnostic,
-        message: diagnostic.allRequiredConfigured 
+        message: diagnostic.allRequiredConfigured
           ? "✅ Toutes les clés API requises sont configurées"
           : "❌ Des clés API requises sont manquantes"
       }),
@@ -1413,16 +1466,16 @@ serve(async (req) => {
     const missingKeys = preCheckDiagnostic.apiKeys
       .filter(k => k.required && !k.configured)
       .map(k => k.name);
-    
+
     console.error("❌ Clés API requises manquantes:", missingKeys.join(", "));
-    
+
     return new Response(
-      JSON.stringify({ 
-        success: false, 
+      JSON.stringify({
+        success: false,
         erreur: `Configuration incomplète: clés API manquantes (${missingKeys.join(", ")})`,
         diagnostic: preCheckDiagnostic,
         suggestion: "Ajoutez les clés API manquantes dans Cloud → Secrets",
-        modelsUsed: [] 
+        modelsUsed: []
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
@@ -1460,7 +1513,7 @@ serve(async (req) => {
         console.log(`📎 Fichier reçu: ${value.name} (${value.type}, ${(value.size / 1024).toFixed(1)} Ko)`);
         const buffer = await value.arrayBuffer();
         const uint8Array = new Uint8Array(buffer);
-        
+
         // Convert to base64 in chunks to avoid stack overflow for large files
         let binary = '';
         const chunkSize = 8192;
@@ -1501,7 +1554,7 @@ serve(async (req) => {
     console.log("\n" + "─".repeat(40));
     console.log("🔍 PHASE 1: Extraction OCR (Gemini)");
     console.log("─".repeat(40));
-    
+
     let extractedData: ExtractedData;
     try {
       extractedData = await callGeminiOCR(files);
@@ -1511,14 +1564,14 @@ serve(async (req) => {
       if (error instanceof ApiError) {
         console.error(`❌ Erreur Gemini: ${error.toDetailedMessage()}`);
         return new Response(
-          JSON.stringify({ 
-            success: false, 
+          JSON.stringify({
+            success: false,
             erreur: error.message,
             details: error.details,
             suggestion: error.suggestion,
             apiName: error.apiName,
             statusCode: error.statusCode,
-            modelsUsed: [] 
+            modelsUsed: []
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
         );
@@ -1548,7 +1601,7 @@ serve(async (req) => {
       // Prendre le type principal (premier) comme typeInvestissement
       extractedData.financement.typeInvestissement = typesBien[0].type;
       // Créer une description avec tous les types et montants
-      const typesBienDescription = typesBien.map(t => 
+      const typesBienDescription = typesBien.map(t =>
         `${t.type}${t.montant ? ` (${t.montant.toLocaleString("fr-FR")} €)` : ''}`
       ).join(', ');
       if (extractedData.financement.descriptionBien) {
@@ -1573,7 +1626,7 @@ serve(async (req) => {
       recommandation: AnalysisResult["recommandation"];
       seuilAccordable: number;
     };
-    
+
     try {
       financialAnalysis = await callOpenAIAnalysis(extractedData);
       modelsUsed.push("GPT-5 (Analyse financière)");
@@ -1587,7 +1640,7 @@ serve(async (req) => {
     console.log("\n" + "─".repeat(40));
     console.log("📊 PHASE 3: Analyse du besoin client");
     console.log("─".repeat(40));
-    
+
     let besoinAnalyse: BesoinAnalyse | undefined;
     try {
       besoinAnalyse = await analyzeClientNeed(extractedData, {
@@ -1607,7 +1660,7 @@ serve(async (req) => {
     // ====== PHASE 4: PERPLEXITY MARKET (parallel) ======
     // ====== PHASE 5: COHERE SYNTHESIS (after market) ======
     console.log("=== PHASE 4 & 5: Market Analysis & Synthesis (parallel) ===");
-    
+
     let analyseSectorielle: AnalysisResult["analyseSectorielle"];
     let syntheseNarrative: AnalysisResult["syntheseNarrative"];
 
@@ -1675,38 +1728,38 @@ serve(async (req) => {
     console.error("\n" + "=".repeat(60));
     console.error("❌ ERREUR LORS DE L'ANALYSE");
     console.error("=".repeat(60));
-    
+
     if (error instanceof ApiError) {
       console.error(`API: ${error.apiName}`);
       console.error(`Message: ${error.message}`);
       console.error(`Code: ${error.statusCode || "N/A"}`);
       console.error(`Détails: ${error.details || "N/A"}`);
       console.error(`Suggestion: ${error.suggestion}`);
-      
+
       return new Response(
-        JSON.stringify({ 
-          success: false, 
+        JSON.stringify({
+          success: false,
           erreur: error.message,
           details: error.details,
           suggestion: error.suggestion,
           apiName: error.apiName,
           statusCode: error.statusCode,
-          modelsUsed: [] 
+          modelsUsed: []
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
-    
+
     const errorMessage = error instanceof Error ? error.message : "Erreur inconnue lors de l'analyse";
     console.error(`Message: ${errorMessage}`);
     console.error(`Stack: ${error instanceof Error ? error.stack : "N/A"}`);
-    
+
     return new Response(
-      JSON.stringify({ 
-        success: false, 
+      JSON.stringify({
+        success: false,
         erreur: errorMessage,
         suggestion: "Vérifiez les logs pour plus de détails ou réessayez",
-        modelsUsed: [] 
+        modelsUsed: []
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );

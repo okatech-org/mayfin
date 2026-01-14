@@ -29,59 +29,112 @@ interface SectorAnalysisResponse {
   error?: string;
 }
 
-const PERPLEXITY_PROMPT = `Tu es un analyste économique spécialisé dans l'analyse sectorielle pour l'octroi de crédits professionnels.
+const PERPLEXITY_PROMPT = `Tu es un analyste économique senior spécialisé dans l'analyse sectorielle pour l'octroi de crédits professionnels en FRANCE.
+
+CONTEXTE IMPORTANT - MARCHÉ FRANÇAIS :
+- Cette analyse est destinée à des BANQUES FRANÇAISES
+- L'entreprise est située en FRANCE
+- Applique uniquement la réglementation et législation FRANÇAISE
+- Référence les statistiques INSEE, Banque de France, et sources françaises officielles
 
 ENTREPRISE À ANALYSER:
 - Secteur d'activité : {SECTEUR}
 - Code NAF/APE : {CODE_NAF}
-- Localisation : {LOCALISATION}
+- Localisation : {LOCALISATION} (France)
 - Raison sociale : {RAISON_SOCIALE}
 
-MISSION : Fournir une analyse sectorielle détaillée et à jour pour évaluer le risque de financement.
+MISSION : Fournir une analyse sectorielle détaillée et à jour pour évaluer le risque de financement bancaire EN FRANCE.
 
-ANALYSE REQUISE :
+ANALYSE REQUISE (contexte 100% FRANÇAIS) :
 
-1. CONTEXTE DE MARCHÉ (2024-2025)
-- État actuel du secteur en France
-- Tendances macroéconomiques impactantes
-- Évolution récente (12 derniers mois)
+1. CONTEXTE DE MARCHÉ FRANÇAIS (2024-2025)
+- État actuel du secteur en France métropolitaine
+- Impact des politiques économiques françaises
+- Évolution récente sur le marché français (12 derniers mois)
+- Données INSEE, Banque de France, OSEO/BPI France
 
-2. RISQUES SECTORIELS (4-6 risques)
-- Risques économiques spécifiques
-- Risques réglementaires
-- Risques technologiques (disruption)
-- Risques de marché (concurrence, demande)
-- Risques environnementaux/ESG
+2. RISQUES SECTORIELS EN FRANCE (4-6 risques)
+- Risques économiques spécifiques au contexte français
+- Risques réglementaires français (loi de finance, URSSAF, etc.)
+- Risques technologiques (disruption du secteur en France)
+- Risques de marché français (concurrence, demande domestique)
+- Risques environnementaux/ESG selon normes françaises/UE
 
-3. OPPORTUNITÉS (4-6 opportunités)
-- Leviers de croissance identifiés
-- Innovations sectorielles
-- Aides et subventions disponibles
-- Tendances favorables
+3. OPPORTUNITÉS EN FRANCE (4-6 opportunités)
+- Aides et subventions françaises (BPI France, crédit d'impôt, etc.)
+- Plans de relance français et européens applicables
+- Évolutions législatives favorables
+- Tendances de consommation en France
 
-4. BENCHMARK CONCURRENTIEL
-- Positionnement type des acteurs
-- Marges moyennes du secteur
-- Taux de défaillance sectoriel si disponible
+4. BENCHMARK CONCURRENTIEL FRANÇAIS
+- Positionnement type des acteurs français du secteur
+- Marges moyennes observées en France
+- Taux de défaillance sectoriel français (Banque de France, Altares)
+- Comparaison avec les normes du secteur en France
 
-5. TENDANCES ACTUELLES (3-5 tendances)
-- Digitalisation
-- RSE/Développement durable
-- Évolutions consommateurs
+5. TENDANCES ACTUELLES EN FRANCE (3-5 tendances)
+- Transition numérique des entreprises françaises
+- RSE et développement durable selon normes françaises
+- Évolutions des habitudes de consommation en France
 
-6. PERSPECTIVES DE CROISSANCE
-- Prévisions court terme (6-12 mois)
-- Prévisions moyen terme (2-3 ans)
+6. PERSPECTIVES DE CROISSANCE EN FRANCE
+- Prévisions court terme (6-12 mois) du marché français
+- Prévisions moyen terme (2-3 ans) selon INSEE/Banque de France
+
+SOURCES REQUISES :
+Privilégie les sources françaises officielles : INSEE, Banque de France, BPI France, Ministères français, URSSAF, Chambre de Commerce, fédérations professionnelles françaises.
 
 RÉPONDS UNIQUEMENT EN JSON avec cette structure exacte :
 {
-  "contexteMarche": "Analyse détaillée du contexte actuel...",
-  "risquesSecteur": ["risque1", "risque2", ...],
-  "opportunites": ["opportunite1", "opportunite2", ...],
-  "benchmarkConcurrents": "Analyse comparative détaillée...",
-  "tendancesActuelles": ["tendance1", "tendance2", ...],
-  "perspectivesCroissance": "Prévisions de croissance..."
+  "contexteMarche": "Analyse détaillée du contexte actuel EN FRANCE...",
+  "risquesSecteur": ["risque1 (France)", "risque2 (France)", ...],
+  "opportunites": ["opportunite1 (France)", "opportunite2 (France)", ...],
+  "benchmarkConcurrents": "Analyse comparative des acteurs FRANÇAIS...",
+  "tendancesActuelles": ["tendance1 en France", "tendance2 en France", ...],
+  "perspectivesCroissance": "Prévisions de croissance du marché FRANÇAIS..."
 }`;
+
+// French domain whitelist for source filtering
+const FRENCH_DOMAIN_PATTERNS = [
+  '.fr',
+  '.gouv.fr',
+  'insee.',
+  'banque-france.',
+  'bpifrance.',
+  'legifrance.',
+  'service-public.',
+  'economie.gouv.',
+  'travail.gouv.',
+  'urssaf.',
+  'impots.gouv.',
+  'infogreffe.',
+  'societe.com',
+  'pappers.',
+  'altares.',
+  'coface.fr',
+  'lesechos.',
+  'bfmtv.',
+  'lefigaro.',
+  'lemonde.',
+  'latribune.',
+  'challenges.',
+  'capital.',
+  'europa.eu',
+  'eurostat.',
+  'oecd.',
+  'ocde.',
+];
+
+// Filter sources to keep only French/EU relevant ones
+function filterFrenchSources(sources: string[]): string[] {
+  if (!sources || !Array.isArray(sources)) return [];
+
+  return sources.filter(source => {
+    const lowerSource = source.toLowerCase();
+    // Check if source matches any French pattern
+    return FRENCH_DOMAIN_PATTERNS.some(pattern => lowerSource.includes(pattern));
+  });
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -91,7 +144,7 @@ serve(async (req) => {
 
   try {
     const apiKey = Deno.env.get("PERPLEXITY_API_KEY");
-    
+
     if (!apiKey) {
       console.error("[Sector Analysis] PERPLEXITY_API_KEY not configured");
       return new Response(
@@ -136,9 +189,9 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "sonar-pro",
         messages: [
-          { 
-            role: "system", 
-            content: "Tu es un analyste économique expert. Tu fournis des analyses sectorielles précises et à jour pour l'évaluation du risque de crédit. Réponds uniquement en JSON valide sans markdown." 
+          {
+            role: "system",
+            content: "Tu es un analyste économique expert du marché FRANÇAIS. Tu fournis des analyses sectorielles précises, actuelles et 100% focalisées sur le contexte économique, réglementaire et bancaire FRANÇAIS. Utilise uniquement des sources françaises et européennes. Réponds uniquement en JSON valide sans markdown."
           },
           { role: "user", content: prompt }
         ],
@@ -152,7 +205,7 @@ serve(async (req) => {
     if (!perplexityResponse.ok) {
       const errorText = await perplexityResponse.text();
       console.error("[Sector Analysis] Perplexity API error:", perplexityResponse.status, errorText);
-      
+
       let errorMessage = "Erreur lors de l'appel à l'API Perplexity";
       if (perplexityResponse.status === 401) {
         errorMessage = "Clé API Perplexity invalide";
@@ -187,9 +240,11 @@ serve(async (req) => {
 
     try {
       const parsed = JSON.parse(jsonStr);
-      parsed.sources = sources;
+      // Filter sources to keep only French/EU relevant ones
+      const filteredSources = filterFrenchSources(sources);
+      parsed.sources = filteredSources;
 
-      console.log("[Sector Analysis] ✅ Analysis complete with", sources.length, "sources");
+      console.log(`[Sector Analysis] ✅ Analysis complete with ${sources.length} raw sources, ${filteredSources.length} French sources retained`);
 
       return new Response(
         JSON.stringify({
@@ -214,7 +269,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("[Sector Analysis] Unexpected error:", error);
-    
+
     return new Response(
       JSON.stringify({
         success: false,
