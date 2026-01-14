@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Shield, Eye, EyeOff, Loader2, Lock, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Lock, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
+import logoMayfin from '@/assets/logo-mayfin.png';
 
 const schema = z.object({
   password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
@@ -91,14 +92,12 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen flex">
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-sidebar flex-col justify-between p-12">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sidebar-primary">
-            <Shield className="h-7 w-7 text-sidebar-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-sidebar-foreground">FinDecision</h1>
-            <p className="text-sm text-sidebar-foreground/60">Aide à la décision bancaire</p>
-          </div>
+        <div className="flex items-center">
+          <img 
+            src={logoMayfin} 
+            alt="MayFin" 
+            className="h-10 w-auto object-contain"
+          />
         </div>
 
         <div className="space-y-6">
@@ -123,11 +122,12 @@ export default function ResetPasswordPage() {
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
-          <div className="flex lg:hidden items-center gap-3 mb-8 justify-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <Shield className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <h1 className="text-xl font-bold text-foreground">FinDecision</h1>
+          <div className="flex lg:hidden items-center mb-8 justify-center">
+            <img 
+              src={logoMayfin} 
+              alt="MayFin" 
+              className="h-8 w-auto object-contain"
+            />
           </div>
 
           {isSuccess ? (

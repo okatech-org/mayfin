@@ -4,12 +4,12 @@ import {
     Users,
     Settings,
     ArrowLeft,
-    Shield,
     LogOut,
     Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import logoMayfin from '@/assets/logo-mayfin.png';
 
 const navigation = [
     { name: 'Dashboard Système', href: '/system-admin', icon: LayoutDashboard },
@@ -25,14 +25,13 @@ export function AdminSystemSidebar() {
         <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-slate-900 border-r border-slate-800">
             <div className="flex h-full flex-col">
                 {/* Logo */}
-                <div className="flex h-16 items-center gap-3 px-6 border-b border-slate-800">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-600">
-                        <Shield className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-bold text-white">Admin Système</h1>
-                        <p className="text-xs text-slate-400">FinDecision</p>
-                    </div>
+                <div className="flex h-16 items-center px-4 border-b border-slate-800">
+                    <img 
+                        src={logoMayfin} 
+                        alt="MayFin" 
+                        className="h-8 w-auto object-contain brightness-0 invert"
+                    />
+                    <span className="ml-3 text-xs font-medium text-red-400 bg-red-950 px-2 py-0.5 rounded">ADMIN</span>
                 </div>
 
                 {/* Navigation */}
