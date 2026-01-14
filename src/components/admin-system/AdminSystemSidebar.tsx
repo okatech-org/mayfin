@@ -25,13 +25,13 @@ export function AdminSystemSidebar() {
         <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-slate-900 border-r border-slate-800">
             <div className="flex h-full flex-col">
                 {/* Logo */}
-                <div className="flex h-16 items-center px-4 border-b border-slate-800">
+                <div className="flex h-20 items-center justify-center gap-3 px-4 border-b border-slate-800">
                     <img 
                         src={logoMayfin} 
                         alt="MayFin" 
                         className="h-12 w-auto object-contain brightness-0 invert"
                     />
-                    <span className="ml-3 text-xs font-medium text-red-400 bg-red-950 px-2 py-0.5 rounded">ADMIN</span>
+                    <span className="text-xs font-medium text-red-400 bg-red-950 px-2 py-0.5 rounded">ADMIN</span>
                 </div>
 
                 {/* Navigation */}

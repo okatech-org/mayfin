@@ -363,11 +363,60 @@ export function generateSmartAnalysisPDF(
     const contentWidth = pageWidth - 2 * margin;
     let y = margin;
 
-    // Compact page break check
+    // Helper to draw MayFin logo header on any page
+    const drawPageHeader = (isFirstPage = false) => {
+        // MayFin branded header stripe
+        doc.setFillColor(...MAYFIN_COLORS.green);
+        doc.rect(0, 0, pageWidth, 4, 'F');
+        
+        // Draw MayFin logo with 3 colored squares (compact version for non-first pages)
+        const logoX = margin;
+        const logoY = 8;
+        const squareSize = isFirstPage ? 8 : 5;
+        const squareGap = isFirstPage ? 2 : 1.5;
+        const squareRadius = 1;
+        
+        // Green square
+        doc.setFillColor(76, 175, 80);
+        doc.roundedRect(logoX, logoY, squareSize, squareSize, squareRadius, squareRadius, 'F');
+        
+        // Yellow square
+        doc.setFillColor(255, 193, 7);
+        doc.roundedRect(logoX + squareSize + squareGap, logoY, squareSize, squareSize, squareRadius, squareRadius, 'F');
+        
+        // Blue square (smaller)
+        doc.setFillColor(33, 100, 175);
+        const blueOffset = isFirstPage ? 2 : 1;
+        doc.roundedRect(logoX + 2 * (squareSize + squareGap), logoY + blueOffset, squareSize - blueOffset, squareSize - blueOffset, squareRadius, squareRadius, 'F');
+        
+        // MAYFIN text
+        const fontSize = isFirstPage ? 14 : 9;
+        doc.setFontSize(fontSize);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 115, 65);
+        doc.text('MAY', logoX, logoY + squareSize + (isFirstPage ? 8 : 5));
+        const mayWidth = doc.getTextWidth('MAY');
+        doc.setTextColor(33, 100, 175);
+        doc.text('FIN', logoX + mayWidth, logoY + squareSize + (isFirstPage ? 8 : 5));
+        
+        // Page number (except first page)
+        if (!isFirstPage) {
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(128, 128, 128);
+            const pageNum = doc.getNumberOfPages();
+            doc.text(`Page ${pageNum}`, pageWidth - margin, logoY + squareSize + 5, { align: 'right' });
+        }
+        
+        doc.setTextColor(0, 0, 0);
+        return isFirstPage ? 38 : 22;
+    };
+
+    // Compact page break check with header
     const checkPageBreak = (neededSpace = 20) => {
         if (y + neededSpace > pageHeight - 15) {
             doc.addPage();
-            y = margin;
+            y = drawPageHeader(false);
         }
     };
 
@@ -446,47 +495,14 @@ export function generateSmartAnalysisPDF(
     const besoin = analysisResult.besoinAnalyse;
 
     // ============ PAGE 1: COVER + SCORING (MayFin Branded) ============
-    y = 10;
-
-    // MayFin branded header stripe
-    doc.setFillColor(...MAYFIN_COLORS.green);
-    doc.rect(0, 0, pageWidth, 6, 'F');
+    y = drawPageHeader(true);
     
-    // Draw MayFin logo with 3 colored squares
-    const logoX = margin;
-    const logoY = 12;
-    const squareSize = 8;
-    const squareGap = 2;
-    const squareRadius = 1.5;
-    
-    // Green square
-    doc.setFillColor(76, 175, 80); // #4CAF50
-    doc.roundedRect(logoX, logoY, squareSize, squareSize, squareRadius, squareRadius, 'F');
-    
-    // Yellow square
-    doc.setFillColor(255, 193, 7); // #FFC107
-    doc.roundedRect(logoX + squareSize + squareGap, logoY, squareSize, squareSize, squareRadius, squareRadius, 'F');
-    
-    // Blue square (smaller)
-    doc.setFillColor(33, 100, 175); // #2164AF
-    doc.roundedRect(logoX + 2 * (squareSize + squareGap), logoY + 2, squareSize - 2, squareSize - 2, squareRadius, squareRadius, 'F');
-    
-    // MAYFIN text below squares
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 115, 65); // MAY in green
-    doc.text('MAY', logoX, logoY + squareSize + 8);
-    const mayWidth = doc.getTextWidth('MAY');
-    doc.setTextColor(33, 100, 175); // FIN in blue
-    doc.text('FIN', logoX + mayWidth, logoY + squareSize + 8);
-    
-    // Confidential text
+    // Confidential text on first page
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MAYFIN_COLORS.darkGrey);
-    doc.text('Analyse de Financement - Document Confidentiel', pageWidth - margin, logoY + squareSize + 8, { align: 'right' });
-    
-    y = 38;
+    doc.text('Analyse de Financement - Document Confidentiel', pageWidth - margin, 21, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
 
     // Title box with MayFin green
     doc.setFillColor(...MAYFIN_COLORS.green);
