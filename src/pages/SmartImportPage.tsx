@@ -111,8 +111,8 @@ export default function SmartImportPage() {
     };
 
     const handleUpdateTypeBienMontant = (type: TypeBienCode, montant: string) => {
-        setTypesBien(typesBien.map(t => 
-            t.type === type 
+        setTypesBien(typesBien.map(t =>
+            t.type === type
                 ? { ...t, montant: montant ? parseFloat(montant) : undefined }
                 : t
         ));
@@ -145,7 +145,7 @@ export default function SmartImportPage() {
 
             const { data: session } = await (await import('@/integrations/supabase/client')).supabase.auth.getSession();
             const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            
+
             const response = await fetch(`${supabaseUrl}/functions/v1/analyze-documents`, {
                 method: 'POST',
                 headers: {
@@ -194,35 +194,35 @@ export default function SmartImportPage() {
                     const descriptionProjetDetails = (projet?.descriptionProjet || '').toLowerCase();
                     const contexteProjet = (projet?.contexte || '').toLowerCase();
                     const objectifs = (projet?.objectifs || []).join(' ').toLowerCase();
-                    
+
                     // Combine all text sources for comprehensive detection
                     const combinedText = `${objetLower} ${descriptionBienLower} ${descriptionProjetFinancement} ${descriptionProjetDetails} ${contexteProjet} ${objectifs}`;
-                    
+
                     // Detect vehicle-related keywords
                     if (/v[ée]hicule|voiture|camion|utilitaire|auto|flotte|transport|tracteur|remorque/.test(combinedText)) {
                         detectedTypes.push({ type: 'vehicule', montant: undefined });
                     }
-                    
+
                     // Detect material/equipment keywords
                     if (/mat[ée]riel|[ée]quipement|machine|outillage|engin|chariot|grue|nacelle/.test(combinedText)) {
                         detectedTypes.push({ type: 'materiel', montant: undefined });
                     }
-                    
+
                     // Detect real estate keywords
                     if (/immobilier|local|bureau|entrep[oô]t|b[aâ]timent|murs|locaux|terrain|commerce/.test(combinedText)) {
                         detectedTypes.push({ type: 'immobilier', montant: undefined });
                     }
-                    
+
                     // Detect IT keywords
                     if (/informatique|ordinateur|serveur|logiciel|it|digital|num[ée]rique|technologie/.test(combinedText)) {
                         detectedTypes.push({ type: 'informatique', montant: undefined });
                     }
-                    
+
                     // Detect BFR/treasury keywords
                     if (/bfr|tr[ée]sorerie|fonds de roulement|stock|cr[ée]ances|besoin en fonds/.test(combinedText)) {
                         detectedTypes.push({ type: 'bfr', montant: undefined });
                     }
-                    
+
                     // Fallback to typeInvestissement if provided
                     if (detectedTypes.length === 0 && financement?.typeInvestissement) {
                         const typeMapping: Record<string, TypeBienCode> = {
@@ -236,7 +236,7 @@ export default function SmartImportPage() {
                         const detectedType = typeMapping[financement.typeInvestissement] || 'autre';
                         detectedTypes.push({ type: detectedType, montant: financement.montantDemande });
                     }
-                    
+
                     if (detectedTypes.length > 0) {
                         setTypesBien(detectedTypes);
                         fieldsUpdated++;
@@ -253,25 +253,25 @@ export default function SmartImportPage() {
                     const contexteProjet = (projet?.contexte || '').toLowerCase();
                     const objectifs = (projet?.objectifs || []).join(' ').toLowerCase();
                     const raisonSocialeLower = (entreprise?.raisonSociale || '').toLowerCase();
-                    
+
                     // Combine all text sources for comprehensive detection
                     const combinedText = `${objetLower} ${descriptionProjetFinancement} ${descriptionProjetDetails} ${contexteProjet} ${objectifs} ${raisonSocialeLower}`;
-                    
+
                     // Detect franchise keywords
                     if (/franchise|franchis[ée]|r[ée]seau|enseigne|master franchise|concept|licence de marque/.test(combinedText)) {
                         detectedContexts.push('franchise');
                     }
-                    
+
                     // Detect creation keywords
                     if (/cr[ée]ation|nouvelle entreprise|lancement|d[ée]marrage|startup|projet de cr[ée]ation/.test(combinedText)) {
                         detectedContexts.push('creation_entreprise');
                     }
-                    
+
                     // Detect reprise/takeover keywords
                     if (/reprise|rachat|transmission|cession|acquisition|succession/.test(combinedText)) {
                         detectedContexts.push('reprise_activite');
                     }
-                    
+
                     // If has financial history and no other context detected, assume existing company
                     if (hasFinancialHistory && detectedContexts.length === 0) {
                         detectedContexts.push('entreprise_existante');
@@ -279,7 +279,7 @@ export default function SmartImportPage() {
                         // No history and no specific context = likely creation
                         detectedContexts.push('creation_entreprise');
                     }
-                    
+
                     if (detectedContexts.length > 0) {
                         setContextesDossier(detectedContexts);
                         fieldsUpdated++;
@@ -365,7 +365,7 @@ export default function SmartImportPage() {
                 description_bien: null,
                 score_global: result.score?.global || null,
                 recommandation: result.recommandation || null,
-                status: 'en_cours',
+                status: 'en_analyse',
             });
 
             toast.success('Dossier créé avec succès');
@@ -398,7 +398,7 @@ export default function SmartImportPage() {
     const handleReloadFromHistory = useCallback((entry: AnalyseHistoryEntry) => {
         // Reconstruct AnalysisResult from history entry
         const extractedData = entry.extracted_data as unknown as AnalysisResult['data'];
-        
+
         const analysisResult: AnalysisResult = {
             success: true,
             data: extractedData,
@@ -434,7 +434,7 @@ export default function SmartImportPage() {
                 subtitle="Importez vos documents et laissez l'IA analyser automatiquement"
             />
 
-            <div className="p-6 max-w-4xl mx-auto">
+            <div className="p-4 lg:p-6 max-w-4xl mx-auto">
                 {/* Hero section */}
                 {showForm && (
                     <div className="text-center mb-8">
@@ -548,7 +548,7 @@ export default function SmartImportPage() {
                                             if (!option) return null;
                                             const Icon = option.icon;
                                             return (
-                                                <div 
+                                                <div
                                                     key={item.type}
                                                     className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg"
                                                 >
@@ -587,8 +587,8 @@ export default function SmartImportPage() {
                                             className="w-28"
                                             disabled={isAnalyzing}
                                         />
-                                        <Select 
-                                            value="" 
+                                        <Select
+                                            value=""
                                             onValueChange={(v) => handleAddTypeBien(v as TypeBienCode)}
                                             disabled={isAnalyzing}
                                         >
@@ -623,11 +623,10 @@ export default function SmartImportPage() {
                                     {CONTEXTE_DOSSIER_OPTIONS.map((option) => (
                                         <label
                                             key={option.value}
-                                            className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                                                contextesDossier.includes(option.value) 
-                                                    ? 'bg-primary/10 border-primary' 
-                                                    : 'bg-muted/30 border-border hover:bg-muted/50'
-                                            }`}
+                                            className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${contextesDossier.includes(option.value)
+                                                ? 'bg-primary/10 border-primary'
+                                                : 'bg-muted/30 border-border hover:bg-muted/50'
+                                                }`}
                                         >
                                             <Checkbox
                                                 checked={contextesDossier.includes(option.value)}
@@ -674,7 +673,7 @@ export default function SmartImportPage() {
                         </div>
 
                         {/* Action buttons */}
-                        <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="flex flex-col gap-3">
                             <Button
                                 size="lg"
                                 className="flex-1"
@@ -715,11 +714,11 @@ export default function SmartImportPage() {
                 {/* Progress section */}
                 {showProgress && (
                     <div className="space-y-6">
-                        <AIAnalysisProgress 
-                            step={step} 
-                            progress={progress} 
-                            error={error} 
-                            uploadProgress={uploadProgress} 
+                        <AIAnalysisProgress
+                            step={step}
+                            progress={progress}
+                            error={error}
+                            uploadProgress={uploadProgress}
                             onCancel={cancel}
                         />
                     </div>
@@ -756,55 +755,67 @@ export default function SmartImportPage() {
 
             {/* Notes Dialog for saving to history */}
             <Dialog open={showNotesDialog} onOpenChange={setShowNotesDialog}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <StickyNote className="h-5 w-5 text-primary" />
+                <DialogContent className="sm:max-w-lg border-border/50 bg-card/95 backdrop-blur-sm">
+                    <DialogHeader className="pb-4 border-b border-border/50">
+                        <DialogTitle className="flex items-center gap-3 text-lg">
+                            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/10">
+                                <StickyNote className="h-5 w-5 text-primary" />
+                            </div>
                             Sauvegarder l'analyse
                         </DialogTitle>
-                        <DialogDescription>
+                        <DialogDescription className="text-muted-foreground mt-2">
                             Ajoutez des notes personnalisées pour retrouver facilement cette analyse dans l'historique.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="analysis-notes">Notes (optionnel)</Label>
-                            <Textarea
-                                id="analysis-notes"
-                                value={analysisNotes}
-                                onChange={(e) => setAnalysisNotes(e.target.value)}
-                                placeholder="Ex: Dossier prioritaire, revoir les garanties, attente documents complémentaires..."
-                                className="min-h-[100px] resize-none"
-                                maxLength={500}
-                            />
-                            <p className="text-xs text-muted-foreground text-right">
-                                {analysisNotes.length}/500 caractères
-                            </p>
+
+                    <div className="py-6">
+                        <div className="space-y-3">
+                            <Label htmlFor="analysis-notes" className="text-sm font-medium">
+                                Notes <span className="text-muted-foreground font-normal">(optionnel)</span>
+                            </Label>
+                            <div className="relative">
+                                <Textarea
+                                    id="analysis-notes"
+                                    value={analysisNotes}
+                                    onChange={(e) => setAnalysisNotes(e.target.value)}
+                                    placeholder="Ex: Dossier prioritaire, revoir les garanties, attente documents complémentaires..."
+                                    className="min-h-[120px] resize-none bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-colors"
+                                    maxLength={500}
+                                />
+                                <p className="absolute bottom-3 right-3 text-xs text-muted-foreground/70 bg-card/80 px-1.5 py-0.5 rounded">
+                                    {analysisNotes.length}/500
+                                </p>
+                            </div>
                         </div>
                     </div>
-                    <DialogFooter className="flex-col sm:flex-row gap-2">
+
+                    <DialogFooter className="pt-4 border-t border-border/50 gap-3 sm:gap-3">
                         <Button
                             variant="ghost"
                             onClick={handleSkipSaveToHistory}
-                            className="sm:mr-auto"
+                            className="text-muted-foreground hover:text-foreground"
                         >
                             Ne pas sauvegarder
                         </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => handleSaveToHistory(false)}
-                            disabled={isSaving}
-                        >
-                            <Save className="h-4 w-4 mr-2" />
-                            Sauvegarder sans notes
-                        </Button>
-                        <Button
-                            onClick={() => handleSaveToHistory(true)}
-                            disabled={isSaving}
-                        >
-                            <Save className="h-4 w-4 mr-2" />
-                            {isSaving ? 'Sauvegarde...' : 'Sauvegarder avec notes'}
-                        </Button>
+                        <div className="flex gap-2 flex-1 sm:flex-none sm:ml-auto">
+                            <Button
+                                variant="outline"
+                                onClick={() => handleSaveToHistory(false)}
+                                disabled={isSaving}
+                                className="flex-1 sm:flex-none border-border/50"
+                            >
+                                <Save className="h-4 w-4 mr-2" />
+                                Sans notes
+                            </Button>
+                            <Button
+                                onClick={() => handleSaveToHistory(true)}
+                                disabled={isSaving}
+                                className="flex-1 sm:flex-none bg-primary hover:bg-primary/90"
+                            >
+                                <Save className="h-4 w-4 mr-2" />
+                                {isSaving ? 'Sauvegarde...' : 'Avec notes'}
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

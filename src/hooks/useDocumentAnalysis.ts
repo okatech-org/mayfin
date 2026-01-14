@@ -154,6 +154,8 @@ export interface AnalysisResult {
     analyseSectorielle?: AnalyseSectorielle;
     syntheseNarrative?: SyntheseNarrative;
     modelsUsed?: string[];
+    /** Questionnaire BNP responses (35 questions, 9 sections) */
+    questionnaireResponses?: Record<string, any>;
     erreur?: string;
 }
 
@@ -316,6 +318,19 @@ function generateDemoData(
 
     const seuilAccordable = Math.round((dernierExercice.ebitda || 0) * 3);
 
+    // Generate syntheseNarrative based on score and data
+    const syntheseNarrative: SyntheseNarrative = {
+        resumeExecutif: `${entreprise.raisonSociale} est une ${entreprise.formeJuridique} créée en ${entreprise.dateCreation?.substring(0, 4)}, opérant dans le secteur ${entreprise.secteurActivite}. Avec un chiffre d'affaires de ${formatCurrencyForSynthesis(dernierExercice.chiffreAffaires)} et un résultat net de ${formatCurrencyForSynthesis(dernierExercice.resultatNet)}, l'entreprise présente ${global >= 70 ? 'une situation financière solide' : global >= 45 ? 'une situation financière acceptable nécessitant attention' : 'une situation financière fragile'}. La demande de financement de ${formatCurrencyForSynthesis(financement.montantDemande)} est ${global >= 70 ? 'cohérente avec la capacité de l\'entreprise' : global >= 45 ? 'à étudier avec des conditions particulières' : 'à risque significatif'}.`,
+        pointsForts: generatePointsForts(details, dernierExercice, entreprise, finances),
+        pointsVigilance: generatePointsVigilance(details, dernierExercice, financement, entreprise),
+        recommandationsConditions: generateRecommandations(global, financement, dernierExercice),
+        conclusionArgumentee: global >= 70
+            ? `Au vu de l'analyse financière favorable (score de ${global}/100), de la solidité des fondamentaux et de l'historique de rentabilité, nous recommandons un avis FAVORABLE pour cette demande de financement. L'entreprise dispose de la capacité de remboursement nécessaire.`
+            : global >= 45
+                ? `L'analyse révèle un profil présentant des aspects positifs mais aussi des points de vigilance (score de ${global}/100). Nous recommandons un accord AVEC RESERVES, sous réserve de garanties complémentaires et d'un suivi renforcé.`
+                : `Le profil de risque élevé (score de ${global}/100) et les fragilités financières identifiées nous conduisent à recommander un avis DEFAVORABLE. Une restructuration financière préalable serait nécessaire.`
+    };
+
     return {
         success: true,
         data: {
@@ -329,7 +344,121 @@ function generateDemoData(
         score: { global, details },
         recommandation,
         seuilAccordable,
+        syntheseNarrative,
     };
+}
+
+// Helper functions for generating synthesis
+function formatCurrencyForSynthesis(value?: number): string {
+    if (!value) return '0 €';
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
+}
+
+function generatePointsForts(
+    details: ScoreDetails,
+    dernierExercice: ExtractedFinanceYear,
+    entreprise: ExtractedEntreprise,
+    finances: ExtractedFinanceYear[]
+): string[] {
+    const points: string[] = [];
+
+    if (details.solvabilite >= 65) {
+        points.push('Structure financière solide avec un bon niveau de capitaux propres');
+    }
+    if (details.rentabilite >= 65) {
+        points.push(`Rentabilité satisfaisante avec un résultat net positif de ${formatCurrencyForSynthesis(dernierExercice.resultatNet)}`);
+    }
+    if (details.activite >= 65 && finances.length >= 2) {
+        const growth = finances[finances.length - 1].chiffreAffaires && finances[finances.length - 2].chiffreAffaires
+            ? ((finances[finances.length - 1].chiffreAffaires! - finances[finances.length - 2].chiffreAffaires!) / finances[finances.length - 2].chiffreAffaires! * 100)
+            : 0;
+        if (growth > 0) {
+            points.push(`Croissance du chiffre d'affaires de ${growth.toFixed(1)}% sur l'exercice`);
+        }
+    }
+    if (dernierExercice.tresorerie && dernierExercice.tresorerie > 0) {
+        points.push(`Trésorerie positive de ${formatCurrencyForSynthesis(dernierExercice.tresorerie)}`);
+    }
+    if (entreprise.dateCreation) {
+        const years = new Date().getFullYear() - parseInt(entreprise.dateCreation.substring(0, 4));
+        if (years >= 5) {
+            points.push(`Entreprise établie depuis ${years} ans avec un historique d'activité`);
+        }
+    }
+    if (dernierExercice.ebitda && dernierExercice.chiffreAffaires) {
+        const margeEbitda = (dernierExercice.ebitda / dernierExercice.chiffreAffaires) * 100;
+        if (margeEbitda >= 8) {
+            points.push(`Marge d'EBITDA de ${margeEbitda.toFixed(1)}% supérieure aux normes sectorielles`);
+        }
+    }
+
+    return points.length > 0 ? points : ['Activité régulière et stable'];
+}
+
+function generatePointsVigilance(
+    details: ScoreDetails,
+    dernierExercice: ExtractedFinanceYear,
+    financement: ExtractedFinancement,
+    entreprise: ExtractedEntreprise
+): string[] {
+    const points: string[] = [];
+
+    if (details.solvabilite < 50) {
+        points.push('Niveau de fonds propres insuffisant - ratio d\'autonomie financière faible');
+    }
+    if (details.rentabilite < 50 && dernierExercice.resultatNet) {
+        if (dernierExercice.resultatNet < 0) {
+            points.push('Résultat net déficitaire sur le dernier exercice');
+        } else {
+            points.push('Marge nette faible par rapport aux standards sectoriels');
+        }
+    }
+    if (details.structure < 50) {
+        points.push('Structure de bilan à renforcer - BFR potentiellement non couvert');
+    }
+    if (financement.montantDemande && dernierExercice.ebitda) {
+        const ratio = financement.montantDemande / dernierExercice.ebitda;
+        if (ratio > 3) {
+            points.push(`Montant demandé élevé par rapport à l'EBITDA (${ratio.toFixed(1)}x l'EBITDA)`);
+        }
+    }
+    if (entreprise.dateCreation) {
+        const years = new Date().getFullYear() - parseInt(entreprise.dateCreation.substring(0, 4));
+        if (years < 3) {
+            points.push(`Entreprise récente (${years} ans) - historique limité`);
+        }
+    }
+    if (dernierExercice.dettesFinancieres && dernierExercice.capitauxPropres) {
+        const ratio = dernierExercice.dettesFinancieres / dernierExercice.capitauxPropres;
+        if (ratio > 1.5) {
+            points.push('Endettement financier élevé par rapport aux capitaux propres');
+        }
+    }
+
+    return points.length > 0 ? points : ['Aucun point de vigilance majeur identifié'];
+}
+
+function generateRecommandations(global: number, financement: ExtractedFinancement, dernierExercice: ExtractedFinanceYear): string[] {
+    const reco: string[] = [];
+
+    if (global >= 70) {
+        reco.push('Accord standard aux conditions habituelles');
+        if (financement.dureeEnMois && financement.dureeEnMois > 60) {
+            reco.push('Privilégier une durée de 48-60 mois pour optimiser le profil de risque');
+        }
+    } else if (global >= 45) {
+        reco.push('Demander une caution personnelle du dirigeant');
+        reco.push('Prévoir une clause de remboursement anticipé');
+        if (dernierExercice.capitauxPropres && dernierExercice.capitauxPropres < 100000) {
+            reco.push('Renforcement des fonds propres recommandé avant financement');
+        }
+    } else {
+        reco.push('Exiger des garanties réelles (nantissement, hypothèque)');
+        reco.push('Réduire le montant accordé au seuil calculé');
+        reco.push('Mise en place d\'un suivi trimestriel des comptes');
+    }
+
+    return reco;
 }
 
 export function useDocumentAnalysis() {
@@ -364,11 +493,11 @@ export function useDocumentAnalysis() {
 
     const analyzeDocuments = useCallback(async (
         files: File[],
-        options?: { 
-            siret?: string; 
-            montantDemande?: number; 
-            apportClient?: number; 
-            typesBien?: { type: string; montant?: number }[]; 
+        options?: {
+            siret?: string;
+            montantDemande?: number;
+            apportClient?: number;
+            typesBien?: { type: string; montant?: number }[];
             contextesDossier?: string[];
             disableCompression?: boolean;
         }

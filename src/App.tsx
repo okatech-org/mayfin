@@ -53,6 +53,7 @@ const App = () => (
               <Route path="/dossiers" element={<ProtectedRoute><DossiersPage /></ProtectedRoute>} />
               <Route path="/dossiers/nouveau-ia" element={<ProtectedRoute><SmartImportPage /></ProtectedRoute>} />
               <Route path="/dossiers/nouveau" element={<ProtectedRoute><NewDossierPage /></ProtectedRoute>} />
+              <Route path="/nouveau-dossier" element={<ProtectedRoute><NewDossierPage /></ProtectedRoute>} />
               <Route path="/dossiers/:id" element={<ProtectedRoute><DossierDetailPage /></ProtectedRoute>} />
               <Route path="/profil" element={<ProtectedRoute><ProfilPage /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPage /></ProtectedRoute>} />

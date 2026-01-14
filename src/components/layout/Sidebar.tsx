@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -29,7 +29,11 @@ const adminNavigation = [
   { name: 'Admin Système', href: '/system-admin', icon: ServerCog },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { role, isAdmin } = useUserRole();
@@ -62,8 +66,13 @@ export function Sidebar() {
     return user?.email?.split('@')[0] || 'Utilisateur';
   };
 
+  const handleLinkClick = () => {
+    // Close mobile sidebar on navigation
+    onNavigate?.();
+  };
+
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
+    <aside className="h-full w-full bg-sidebar border-r border-sidebar-border">
       <div className="flex h-full flex-col">
         {/* Logo */}
         <div className="flex h-20 items-center justify-center px-4 border-b border-sidebar-border">
@@ -84,6 +93,7 @@ export function Sidebar() {
               <Link
                 key={item.name}
                 to={item.href}
+                onClick={handleLinkClick}
                 className={cn(
                   'sidebar-link',
                   isActive && 'sidebar-link-active'
@@ -109,6 +119,7 @@ export function Sidebar() {
                   <Link
                     key={item.name}
                     to={item.href}
+                    onClick={handleLinkClick}
                     className={cn(
                       'sidebar-link',
                       isActive && 'sidebar-link-active'
@@ -141,7 +152,7 @@ export function Sidebar() {
 
         {/* User & Logout */}
         <div className="border-t border-sidebar-border p-3">
-          <Link 
+          <Link
             to="/profil"
             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-accent transition-colors"
           >

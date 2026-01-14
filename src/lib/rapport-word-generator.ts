@@ -2,6 +2,8 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, Ta
 import { saveAs } from 'file-saver';
 import type { AnalysisResult } from '@/hooks/useDocumentAnalysis';
 import type { DossierRow } from '@/hooks/useDossiers';
+import { getApplicableQuestions } from '@/lib/questionnaire-bnp';
+import { SECTIONS as QUESTIONNAIRE_SECTIONS } from '@/types/questionnaire.types';
 
 const formatCurrency = (value?: number): string => {
     if (!value) return '-';
@@ -30,7 +32,7 @@ export async function generateSmartAnalysisWord(
     const secteur = analysisResult.analyseSectorielle;
     const besoin = analysisResult.besoinAnalyse;
 
-    const children: Paragraph[] = [];
+    const children: (Paragraph | Table)[] = [];
 
     // Title
     children.push(
@@ -216,6 +218,7 @@ export async function generateSmartAnalysisWord(
             ]
         });
 
+        children.push(scoreTable);
         children.push(new Paragraph({ children: [] })); // Spacer
 
         // Justifications
@@ -450,6 +453,7 @@ export async function generateSmartAnalysisWord(
             ]
         });
 
+        children.push(financeTable);
         children.push(new Paragraph({ children: [] })); // Spacer
     }
 
@@ -626,6 +630,119 @@ export async function generateSmartAnalysisWord(
                     spacing: { after: 200 }
                 })
             );
+        }
+    }
+
+    // ============ QUESTIONNAIRE BNP (if available) ============
+    const questionnaireResponses = analysisResult.questionnaireResponses;
+    if (questionnaireResponses && Object.keys(questionnaireResponses).length > 0) {
+        children.push(
+            new Paragraph({
+                text: 'QUESTIONNAIRE D\'ANALYSE BNP',
+                heading: HeadingLevel.HEADING_1,
+                spacing: { before: 400, after: 200 }
+            })
+        );
+
+        // Get applicable questions
+        const typeFinancement = data.financement?.typeInvestissement?.toLowerCase();
+        const questions = getApplicableQuestions(typeFinancement);
+
+        // Group by section
+        let currentSection = 0;
+        for (const question of questions) {
+            const value = questionnaireResponses[question.code];
+
+            // Skip unanswered
+            if (value === undefined || value === null || value === '') continue;
+
+            // Section header
+            if (question.section !== currentSection) {
+                currentSection = question.section;
+                const section = QUESTIONNAIRE_SECTIONS.find(s => s.id === currentSection);
+                if (section) {
+                    children.push(
+                        new Paragraph({
+                            text: section.label,
+                            heading: HeadingLevel.HEADING_2,
+                            spacing: { before: 200, after: 100 }
+                        })
+                    );
+                }
+            }
+
+            // Question + answer
+            let displayValue: string;
+            let valueColor = '000000';
+            if (typeof value === 'boolean') {
+                displayValue = value ? '✓ Oui' : '✗ Non';
+                valueColor = value ? '27AE60' : 'E74C3C';
+            } else {
+                displayValue = String(value);
+            }
+
+            children.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: question.label, bold: true }),
+                    ],
+                    spacing: { before: 100, after: 50 }
+                })
+            );
+
+            children.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: `→ ${displayValue}`, color: valueColor }),
+                    ],
+                    spacing: { after: 50 }
+                })
+            );
+
+            // Alert if applicable
+            if (question.alertIfYes && value === true) {
+                children.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({ text: `⚠ ${question.alertIfYes}`, color: 'E74C3C', italics: true, size: 18 }),
+                        ],
+                        spacing: { after: 50 }
+                    })
+                );
+            }
+            if (question.alertIfNo && value === false) {
+                children.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({ text: `⚠ ${question.alertIfNo}`, color: 'E74C3C', italics: true, size: 18 }),
+                        ],
+                        spacing: { after: 50 }
+                    })
+                );
+            }
+
+            // Sub-questions
+            if (question.subQuestions) {
+                for (const sq of question.subQuestions) {
+                    const sqValue = questionnaireResponses[sq.code];
+                    if (sqValue === undefined || sqValue === null || sqValue === '') continue;
+
+                    if (sq.condition?.field) {
+                        const parentValue = questionnaireResponses[sq.condition.field];
+                        if (parentValue !== sq.condition.value) continue;
+                    }
+
+                    children.push(
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: `   ↳ ${sq.label}: `, italics: true, size: 20 }),
+                                new TextRun({ text: String(sqValue), size: 20 }),
+                            ],
+                            spacing: { after: 30 }
+                        })
+                    );
+                }
+            }
         }
     }
 

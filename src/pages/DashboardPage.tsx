@@ -18,14 +18,14 @@ export default function DashboardPage() {
 
   return (
     <Layout>
-      <Header 
-        title="Dashboard" 
+      <Header
+        title="Dashboard"
         subtitle="Vue d'ensemble de votre activité"
       />
-      
-      <div className="p-6 space-y-6">
+
+      <div className="p-4 lg:p-6 space-y-4 lg:space-y-6">
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 lg:gap-4">
           {isLoading ? (
             [...Array(6)].map((_, i) => (
               <div key={i} className="kpi-card">
@@ -81,7 +81,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Charts Row 1 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           <div className="lg:col-span-2">
             <MonthlyChart />
           </div>
@@ -89,13 +89,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Charts Row 2 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
           <StatusChart />
           <SectorScoreChart />
         </div>
 
         {/* Score Evolution Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           <div className="lg:col-span-2">
             <ScoreEvolutionChart />
           </div>

@@ -5,6 +5,8 @@ import type { DossierRow } from '@/hooks/useDossiers';
 import { SECTIONS, QUESTIONS, DECISION_LABELS, SYNTHESE_LABELS, CONDITIONS_PARTICULIERES_OPTIONS } from '@/data/questionnaire-structure';
 import type { Question } from '@/types/rapport-analyse.types';
 import type { AnalysisResult, AnalyseSectorielle, SyntheseNarrative } from '@/hooks/useDocumentAnalysis';
+import { QUESTIONS_MVP, getApplicableQuestions } from '@/lib/questionnaire-bnp';
+import { SECTIONS as QUESTIONNAIRE_SECTIONS } from '@/types/questionnaire.types';
 
 // MayFin Brand Colors (RGB for jsPDF)
 const MAYFIN_COLORS = {
@@ -368,27 +370,27 @@ export function generateSmartAnalysisPDF(
         // MayFin branded header stripe
         doc.setFillColor(...MAYFIN_COLORS.green);
         doc.rect(0, 0, pageWidth, 4, 'F');
-        
+
         // Draw MayFin logo with 3 colored squares (compact version for non-first pages)
         const logoX = margin;
         const logoY = 8;
         const squareSize = isFirstPage ? 8 : 5;
         const squareGap = isFirstPage ? 2 : 1.5;
         const squareRadius = 1;
-        
+
         // Green square
         doc.setFillColor(76, 175, 80);
         doc.roundedRect(logoX, logoY, squareSize, squareSize, squareRadius, squareRadius, 'F');
-        
+
         // Yellow square
         doc.setFillColor(255, 193, 7);
         doc.roundedRect(logoX + squareSize + squareGap, logoY, squareSize, squareSize, squareRadius, squareRadius, 'F');
-        
+
         // Blue square (smaller)
         doc.setFillColor(33, 100, 175);
         const blueOffset = isFirstPage ? 2 : 1;
         doc.roundedRect(logoX + 2 * (squareSize + squareGap), logoY + blueOffset, squareSize - blueOffset, squareSize - blueOffset, squareRadius, squareRadius, 'F');
-        
+
         // MAYFIN text
         const fontSize = isFirstPage ? 14 : 9;
         doc.setFontSize(fontSize);
@@ -398,7 +400,7 @@ export function generateSmartAnalysisPDF(
         const mayWidth = doc.getTextWidth('MAY');
         doc.setTextColor(33, 100, 175);
         doc.text('FIN', logoX + mayWidth, logoY + squareSize + (isFirstPage ? 8 : 5));
-        
+
         // Page number (except first page)
         if (!isFirstPage) {
             doc.setFontSize(7);
@@ -407,7 +409,7 @@ export function generateSmartAnalysisPDF(
             const pageNum = doc.getNumberOfPages();
             doc.text(`Page ${pageNum}`, pageWidth - margin, logoY + squareSize + 5, { align: 'right' });
         }
-        
+
         doc.setTextColor(0, 0, 0);
         return isFirstPage ? 38 : 22;
     };
@@ -496,7 +498,7 @@ export function generateSmartAnalysisPDF(
 
     // ============ PAGE 1: COVER + SCORING (MayFin Branded) ============
     y = drawPageHeader(true);
-    
+
     // Confidential text on first page
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
@@ -550,7 +552,7 @@ export function generateSmartAnalysisPDF(
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.text(`SCORE: ${scoreGlobal}/100`, pageWidth / 2, y + 8, { align: 'center' });
-    
+
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
     doc.text(`${recommandation || 'À ÉVALUER'} • Seuil accordable: ${formatCurrencySpaced(analysisResult.seuilAccordable)}`, pageWidth / 2, y + 16, { align: 'center' });
@@ -650,10 +652,10 @@ export function generateSmartAnalysisPDF(
     const tauxApportRatio = besoin?.tauxApport || 0;
     const capaciteRemb = besoin?.capaciteRemboursement || 0;
     const mensualiteEstimee = besoin?.mensualiteEstimee || 0;
-    
+
     // Calculate DSCR (Debt Service Coverage Ratio)
     const dscr = mensualiteEstimee > 0 ? (capaciteRemb / mensualiteEstimee) : 0;
-    
+
     // Get financial data for ratios
     const latestYear = data?.finances?.annees?.[0];
     const ca = latestYear?.chiffreAffaires || 0;
@@ -661,7 +663,7 @@ export function generateSmartAnalysisPDF(
     const capitauxPropres = latestYear?.capitauxPropres || 0;
     const dettesFinancieres = latestYear?.dettesFinancieres || 0;
     const totalActif = latestYear?.totalActif || 0;
-    
+
     // Calculate additional ratios
     const tauxEndettement = totalActif > 0 ? ((dettesFinancieres / totalActif) * 100) : 0;
     const margeBrute = ca > 0 ? ((ebitda / ca) * 100) : 0;
@@ -852,7 +854,7 @@ export function generateSmartAnalysisPDF(
     if (data?.finances?.annees && data.finances.annees.length > 0) {
         // Sort years in ascending order for display
         const sortedYears = [...data.finances.annees].sort((a, b) => (a.annee || 0) - (b.annee || 0));
-        
+
         const financeHeaders = ['Exercice', 'CA', 'Résultat Net', 'EBITDA', 'Capitaux Propres', 'Trésorerie'];
         const financeRows = sortedYears.map(a => [
             String(a.annee || '-'),
@@ -884,20 +886,20 @@ export function generateSmartAnalysisPDF(
         const sortedYears = [...data.finances.annees].sort((a, b) => (a.annee || 0) - (b.annee || 0));
         const lastYear = sortedYears[sortedYears.length - 1];
         const prevYear = sortedYears[sortedYears.length - 2];
-        
+
         // Calculate growth rates
-        const caGrowth = prevYear?.chiffreAffaires && lastYear?.chiffreAffaires 
-            ? (lastYear.chiffreAffaires - prevYear.chiffreAffaires) / prevYear.chiffreAffaires 
+        const caGrowth = prevYear?.chiffreAffaires && lastYear?.chiffreAffaires
+            ? (lastYear.chiffreAffaires - prevYear.chiffreAffaires) / prevYear.chiffreAffaires
             : 0.05; // Default 5% growth
-        
+
         const baseYear = lastYear?.annee || new Date().getFullYear();
         const baseCA = lastYear?.chiffreAffaires || 0;
         const baseEBITDA = lastYear?.ebitda || 0;
         const baseRN = lastYear?.resultatNet || 0;
-        
+
         // Project 3 years forward with calculated or assumed growth
         const growthRate = Math.min(Math.max(caGrowth, 0.03), 0.25); // Clamp between 3% and 25%
-        
+
         const previsionHeaders = ['Indicateurs', `Année ${baseYear + 1}`, `Année ${baseYear + 2}`, `Année ${baseYear + 3}`];
         const previsionRows = [
             [
@@ -955,7 +957,7 @@ export function generateSmartAnalysisPDF(
         const year = data.finances.annees[0];
         const baseYear = year?.annee || new Date().getFullYear();
         const growthRate = 0.05; // Assume 5% growth
-        
+
         const previsionHeaders = ['Indicateurs', `Année ${baseYear + 1}`, `Année ${baseYear + 2}`, `Année ${baseYear + 3}`];
         const previsionRows = [
             [
@@ -1018,18 +1020,18 @@ export function generateSmartAnalysisPDF(
     const montantDemandePlan = data?.financement?.montantDemande || dossier?.montant_demande || 0;
     const apportClientPlan = besoin?.apportClient || 0;
     const montantFinancePlan = besoin?.montantFinance || montantDemandePlan;
-    
+
     // Estimate BFR and investments based on available data
     const latestYearData = data?.finances?.annees?.[0];
     const stocks = latestYearData?.stocks || 0;
     const creancesClients = latestYearData?.creancesClients || 0;
     const dettesFournisseurs = latestYearData?.dettesFournisseurs || 0;
     const bfrEstime = stocks + creancesClients - dettesFournisseurs;
-    
+
     // Calculate total needs (investment + BFR)
     const investissements = montantDemandePlan > 0 ? montantDemandePlan : 0;
     const totalBesoins = investissements + Math.max(bfrEstime, 0);
-    
+
     // Calculate total resources
     const autresFinancements = Math.max(0, totalBesoins - apportClientPlan - montantFinancePlan);
     const totalRessources = apportClientPlan + montantFinancePlan + autresFinancements;
@@ -1082,7 +1084,7 @@ export function generateSmartAnalysisPDF(
     const tauxApportCalc = totalBesoins > 0 ? (apportClientPlan / totalBesoins) * 100 : 0;
     const tauxApportStatus = tauxApportCalc >= 20 ? '✓' : '⚠';
     const tauxApportColor = tauxApportCalc >= 20 ? MAYFIN_COLORS.successGreen : MAYFIN_COLORS.warningOrange;
-    
+
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...tauxApportColor);
@@ -1193,40 +1195,143 @@ export function generateSmartAnalysisPDF(
         }
     }
 
+    // ============ QUESTIONNAIRE BNP (if available) ============
+    if (false && questionnaireResponses && Object.keys(questionnaireResponses).length > 0) {
+        doc.addPage();
+        y = margin;
+
+        addTitle('QUESTIONNAIRE D\'ANALYSE BNP', 12);
+        y += 5;
+
+        // Get applicable questions (based on financing type if available)
+        const typeFinancement = data?.financement?.typeInvestissement?.toLowerCase();
+        const questions = getApplicableQuestions(typeFinancement);
+
+        // Group questions by section
+        let currentSection = 0;
+        for (const question of questions) {
+            const value = questionnaireResponses[question.code];
+
+            // Skip unanswered questions
+            if (value === undefined || value === null || value === '') {
+                continue;
+            }
+
+            // Section header
+            if (question.section !== currentSection) {
+                currentSection = question.section;
+                const section = QUESTIONNAIRE_SECTIONS.find(s => s.id === currentSection);
+                if (section) {
+                    checkPageBreak(15);
+                    y += 3;
+                    addSubtitle(`${section.label}`, [51, 102, 153]);
+                }
+            }
+
+            checkPageBreak(15);
+
+            // Question label
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            const questionLines = doc.splitTextToSize(question.label, contentWidth - 5);
+            doc.text(questionLines, margin, y);
+            y += questionLines.length * 4;
+
+            // Answer value
+            doc.setFont('helvetica', 'normal');
+            let displayValue: string;
+            if (typeof value === 'boolean') {
+                displayValue = value ? '[OUI]' : '[NON]';
+                if (value) {
+                    doc.setTextColor(39, 174, 96); // green
+                } else {
+                    doc.setTextColor(231, 76, 60); // red
+                }
+            } else {
+                displayValue = String(value);
+            }
+
+            const valueLines = doc.splitTextToSize(`> ${displayValue}`, contentWidth - 10);
+            doc.text(valueLines, margin + 3, y);
+            doc.setTextColor(0, 0, 0);
+            y += valueLines.length * 4 + 3;
+
+            // Check for alert if yes/no
+            if (question.alertIfYes && value === true) {
+                doc.setFontSize(8);
+                doc.setTextColor(231, 76, 60);
+                doc.text(`/!\\ ${question.alertIfYes}`, margin + 3, y);
+                doc.setTextColor(0, 0, 0);
+                y += 5;
+            }
+            if (question.alertIfNo && value === false) {
+                doc.setFontSize(8);
+                doc.setTextColor(231, 76, 60);
+                doc.text(`/!\\ ${question.alertIfNo}`, margin + 3, y);
+                doc.setTextColor(0, 0, 0);
+                y += 5;
+            }
+
+            // Handle sub-questions
+            if (question.subQuestions) {
+                for (const sq of question.subQuestions) {
+                    const sqValue = questionnaireResponses[sq.code];
+                    if (sqValue === undefined || sqValue === null || sqValue === '') continue;
+
+                    // Check condition
+                    if (sq.condition?.field) {
+                        const parentValue = questionnaireResponses[sq.condition.field];
+                        if (parentValue !== sq.condition.value) continue;
+                    }
+
+                    checkPageBreak(10);
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'italic');
+                    doc.text(`  > ${sq.label}:`, margin + 5, y);
+                    y += 4;
+                    doc.setFont('helvetica', 'normal');
+                    const sqLines = doc.splitTextToSize(String(sqValue), contentWidth - 15);
+                    doc.text(sqLines, margin + 8, y);
+                    y += sqLines.length * 4 + 2;
+                }
+            }
+        }
+    }
+
     // ============ WATERMARK & FOOTER ON ALL PAGES ============
     const totalPages = doc.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        
+
         // Diagonal watermark "CONFIDENTIEL" with low opacity
         doc.setFontSize(55);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(220, 220, 220); // Light gray for watermark effect
-        
+
         // Draw watermark in center with rotation
         const text = 'CONFIDENTIEL';
-        doc.text(text, pageWidth / 2, pageHeight / 2, { 
+        doc.text(text, pageWidth / 2, pageHeight / 2, {
             align: 'center',
             angle: 45
         });
-        
+
         // Reset text color for footer
         doc.setTextColor(128, 128, 128);
-        
+
         // Footer line
         doc.setDrawColor(200, 200, 200);
         doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
-        
+
         // Footer text
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
-        
+
         // Left: Document confidentiel - MayFin
         doc.text('Document confidentiel - MayFin', margin, pageHeight - 7);
-        
+
         // Center: Date de génération
         doc.text(`Généré le ${formatDate()}`, pageWidth / 2, pageHeight - 7, { align: 'center' });
-        
+
         // Right: Page number
         doc.text(`Page ${i}/${totalPages}`, pageWidth - margin, pageHeight - 7, { align: 'right' });
     }

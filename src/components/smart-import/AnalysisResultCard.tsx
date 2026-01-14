@@ -169,13 +169,13 @@ function formatCurrency(value?: number): string {
 function SourcesSection({ sources }: { sources: string[] }) {
     const [showAll, setShowAll] = useState(false);
     const displayedSources = showAll ? sources : sources.slice(0, 5);
-    
+
     // Parse source to get domain and clean URL
     const parseSource = (src: string): { domain: string; url: string; isValid: boolean } => {
         try {
             const url = new URL(src);
-            return { 
-                domain: url.hostname.replace('www.', ''), 
+            return {
+                domain: url.hostname.replace('www.', ''),
                 url: src,
                 isValid: true
             };
@@ -193,11 +193,11 @@ function SourcesSection({ sources }: { sources: string[] }) {
                     Sources de l'analyse ({sources.length})
                 </span>
             </div>
-            
+
             <div className="space-y-2">
                 {displayedSources.map((src, i) => {
                     const parsed = parseSource(src);
-                    
+
                     if (!parsed.isValid) {
                         return (
                             <div key={i} className="text-xs text-muted-foreground flex items-center gap-2">
@@ -206,7 +206,7 @@ function SourcesSection({ sources }: { sources: string[] }) {
                             </div>
                         );
                     }
-                    
+
                     return (
                         <a
                             key={i}
@@ -228,7 +228,7 @@ function SourcesSection({ sources }: { sources: string[] }) {
                     );
                 })}
             </div>
-            
+
             {sources.length > 5 && (
                 <button
                     onClick={() => setShowAll(!showAll)}
@@ -261,6 +261,12 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
     const { saveToHistory, isSaving } = useAnalyseHistory();
 
     if (!data || !score) return null;
+
+    // Create updated result with refreshed sector data - moved before handlers that use it
+    const updatedResult: AnalysisResult = {
+        ...result,
+        analyseSectorielle: sectorData
+    };
 
     const handleDownloadPDF = () => {
         if (!updatedResult.data) {
@@ -298,7 +304,7 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
 
     const handleSaveToHistory = async () => {
         try {
-            await saveToHistory({ 
+            await saveToHistory({
                 analysisResult: updatedResult,
                 sourceFiles: data.documentsDetectes
             });
@@ -338,12 +344,6 @@ export function AnalysisResultCard({ result, onCreateDossier, onManualMode, isCr
         } finally {
             setIsRefreshingSector(false);
         }
-    };
-
-    // Create updated result with refreshed sector data
-    const updatedResult: AnalysisResult = {
-        ...result,
-        analyseSectorielle: sectorData
     };
 
     return (

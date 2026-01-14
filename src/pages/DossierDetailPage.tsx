@@ -185,9 +185,9 @@ export default function DossierDetailPage() {
         subtitle={`SIREN: ${dossier.siren} • ${typeFinancementLabels[dossier.type_financement] || dossier.type_financement}`}
       />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 lg:p-6 space-y-4 lg:space-y-6">
         {/* Actions bar */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 lg:gap-3">
           <Button variant="outline" onClick={() => navigate('/dossiers')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Retour
@@ -263,39 +263,41 @@ export default function DossierDetailPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-flex">
-            <TabsTrigger value="infos" className="gap-2">
-              <Building2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Infos</span>
-            </TabsTrigger>
-            <TabsTrigger value="documents" className="gap-2">
-              <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">Documents</span>
-            </TabsTrigger>
-            <TabsTrigger value="financier" className="gap-2">
-              <Euro className="h-4 w-4" />
-              <span className="hidden sm:inline">Financier</span>
-            </TabsTrigger>
-            <TabsTrigger value="analyse" className="gap-2">
-              <TrendingUp className="h-4 w-4" />
-              <span className="hidden sm:inline">Analyse</span>
-            </TabsTrigger>
-            <TabsTrigger value="score" className="gap-2">
-              <Target className="h-4 w-4" />
-              <span className="hidden sm:inline">Score</span>
-            </TabsTrigger>
-            <TabsTrigger value="rapport" className="gap-2">
-              <ClipboardList className="h-4 w-4" />
-              <span className="hidden sm:inline">Rapport</span>
-            </TabsTrigger>
-            <TabsTrigger value="historique" className="gap-2">
-              <History className="h-4 w-4" />
-              <span className="hidden sm:inline">Historique</span>
-            </TabsTrigger>
-          </TabsList>
+          <div className="mobile-scroll-x -mx-4 px-4 lg:mx-0 lg:px-0">
+            <TabsList className="inline-flex w-max lg:w-auto lg:grid lg:grid-cols-7">
+              <TabsTrigger value="infos" className="gap-2">
+                <Building2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Infos</span>
+              </TabsTrigger>
+              <TabsTrigger value="documents" className="gap-2">
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">Documents</span>
+              </TabsTrigger>
+              <TabsTrigger value="financier" className="gap-2">
+                <Euro className="h-4 w-4" />
+                <span className="hidden sm:inline">Financier</span>
+              </TabsTrigger>
+              <TabsTrigger value="analyse" className="gap-2">
+                <TrendingUp className="h-4 w-4" />
+                <span className="hidden sm:inline">Analyse</span>
+              </TabsTrigger>
+              <TabsTrigger value="score" className="gap-2">
+                <Target className="h-4 w-4" />
+                <span className="hidden sm:inline">Score</span>
+              </TabsTrigger>
+              <TabsTrigger value="rapport" className="gap-2">
+                <ClipboardList className="h-4 w-4" />
+                <span className="hidden sm:inline">Rapport</span>
+              </TabsTrigger>
+              <TabsTrigger value="historique" className="gap-2">
+                <History className="h-4 w-4" />
+                <span className="hidden sm:inline">Historique</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Infos Tab */}
-          <TabsContent value="infos" className="space-y-6 mt-6">
+          <TabsContent value="infos" className="space-y-4 lg:space-y-6 mt-4 lg:mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Entreprise */}
               <Card>
