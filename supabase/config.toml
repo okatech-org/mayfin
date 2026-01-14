@@ -1,1 +1,9 @@
 project_id = "ffgdzlcpdolpkjnvqpos"
+
+# Edge Functions configuration
+# JWT verification is done in-code using getUser() for proper authentication
+[functions.analyze-documents]
+verify_jwt = false
+
+[functions.sector-analysis]
+verify_jwt = false
