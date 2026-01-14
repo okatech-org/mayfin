@@ -1177,7 +1177,8 @@ serve(async (req) => {
     let montantDemande: number | undefined;
     let siretManuel: string | undefined;
     let apportClient: number | undefined;
-    let typeBien: string | undefined;
+    let typesBien: { type: string; montant?: number }[] = [];
+    let contextesDossier: string[] = [];
 
     for (const [key, value] of formData.entries()) {
       if (key === "montantDemande" && typeof value === "string") {
@@ -1186,8 +1187,18 @@ serve(async (req) => {
         siretManuel = value || undefined;
       } else if (key === "apportClient" && typeof value === "string") {
         apportClient = parseFloat(value) || undefined;
-      } else if (key === "typeBien" && typeof value === "string") {
-        typeBien = value || undefined;
+      } else if (key === "typesBien" && typeof value === "string") {
+        try {
+          typesBien = JSON.parse(value) || [];
+        } catch {
+          console.warn("Impossible de parser typesBien:", value);
+        }
+      } else if (key === "contextesDossier" && typeof value === "string") {
+        try {
+          contextesDossier = JSON.parse(value) || [];
+        } catch {
+          console.warn("Impossible de parser contextesDossier:", value);
+        }
       } else if (value instanceof File) {
         console.log(`📎 Fichier reçu: ${value.name} (${value.type}, ${(value.size / 1024).toFixed(1)} Ko)`);
         const buffer = await value.arrayBuffer();
@@ -1217,7 +1228,15 @@ serve(async (req) => {
     if (siretManuel) console.log(`🏢 SIRET fourni: ${siretManuel}`);
     if (montantDemande) console.log(`💰 Montant demandé: ${montantDemande.toLocaleString("fr-FR")} €`);
     if (apportClient) console.log(`💵 Apport client: ${apportClient.toLocaleString("fr-FR")} €`);
-    if (typeBien) console.log(`📦 Type de bien: ${typeBien}`);
+    if (typesBien.length > 0) {
+      console.log(`📦 Types de bien financé:`);
+      typesBien.forEach(t => {
+        console.log(`   - ${t.type}${t.montant ? ` : ${t.montant.toLocaleString("fr-FR")} €` : ''}`);
+      });
+    }
+    if (contextesDossier.length > 0) {
+      console.log(`📋 Contextes dossier: ${contextesDossier.join(", ")}`);
+    }
 
     const modelsUsed: string[] = [];
 
@@ -1266,9 +1285,28 @@ serve(async (req) => {
       extractedData.financement = extractedData.financement || {};
       extractedData.financement.apportClient = apportClient;
     }
-    if (typeBien) {
+    // Apply types de bien avec montants
+    if (typesBien.length > 0) {
       extractedData.financement = extractedData.financement || {};
-      extractedData.financement.typeInvestissement = typeBien;
+      // Prendre le type principal (premier) comme typeInvestissement
+      extractedData.financement.typeInvestissement = typesBien[0].type;
+      // Créer une description avec tous les types et montants
+      const typesBienDescription = typesBien.map(t => 
+        `${t.type}${t.montant ? ` (${t.montant.toLocaleString("fr-FR")} €)` : ''}`
+      ).join(', ');
+      if (extractedData.financement.descriptionBien) {
+        extractedData.financement.descriptionBien += ` - Types demandés: ${typesBienDescription}`;
+      } else {
+        extractedData.financement.descriptionBien = `Types demandés: ${typesBienDescription}`;
+      }
+      // Stocker les types détaillés pour l'analyse (utiliser as any pour ajouter propriété dynamique)
+      // deno-lint-ignore no-explicit-any
+      (extractedData.financement as any).typesBienDetailles = typesBien;
+    }
+    // Stocker contextes dossier (utiliser as any pour ajouter propriété dynamique)
+    if (contextesDossier.length > 0) {
+      // deno-lint-ignore no-explicit-any
+      (extractedData as any).contextesDossier = contextesDossier;
     }
 
     // ====== PHASE 2: OPENAI ANALYSIS ======
