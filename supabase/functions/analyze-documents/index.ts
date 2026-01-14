@@ -9,6 +9,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ============== CONFIGURATION LOVABLE AI ==============
+const LOVABLE_AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+// Models disponibles via Lovable AI (auto-provisionnés, pas besoin de clé API externe)
+const MODELS = {
+  OCR: "google/gemini-2.5-flash",           // Meilleur pour OCR multimodal
+  FINANCIAL_ANALYSIS: "openai/gpt-5",       // Meilleur pour raisonnement complexe
+  NEED_ANALYSIS: "openai/gpt-5",            // Analyse du besoin client
+  SYNTHESIS: "openai/gpt-5-mini"            // Synthèse narrative (rapide et efficace)
+};
+
 // ============== DIAGNOSTIC & ERROR HANDLING ==============
 interface ApiKeyStatus {
   name: string;
@@ -31,35 +42,21 @@ function maskApiKey(key: string | undefined): string {
 }
 
 function runDiagnostics(): DiagnosticResult {
-  const geminiKey = Deno.env.get("GEMINI_API_KEY");
-  const openaiKey = Deno.env.get("OPENAI_API_KEY");
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   const perplexityKey = Deno.env.get("PERPLEXITY_API_KEY");
-  const cohereKey = Deno.env.get("COHERE_API_KEY");
 
   const apiKeys: ApiKeyStatus[] = [
     {
-      name: "GEMINI_API_KEY",
-      configured: !!geminiKey,
+      name: "LOVABLE_API_KEY",
+      configured: !!lovableKey,
       required: true,
-      maskedValue: maskApiKey(geminiKey)
-    },
-    {
-      name: "OPENAI_API_KEY",
-      configured: !!openaiKey,
-      required: true,
-      maskedValue: maskApiKey(openaiKey)
+      maskedValue: maskApiKey(lovableKey)
     },
     {
       name: "PERPLEXITY_API_KEY",
       configured: !!perplexityKey,
       required: false,
       maskedValue: maskApiKey(perplexityKey)
-    },
-    {
-      name: "COHERE_API_KEY",
-      configured: !!cohereKey,
-      required: false,
-      maskedValue: maskApiKey(cohereKey)
     }
   ];
 
@@ -527,43 +524,47 @@ Format JSON :
 
 // ============== API CALLS ==============
 
-async function callGeminiOCR(files: Array<{ type: string; data: string }>): Promise<ExtractedData> {
-  const apiKey = Deno.env.get("GEMINI_API_KEY");
+async function callLovableAI(
+  model: string,
+  systemPrompt: string,
+  userContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>,
+  temperature: number = 0.2
+): Promise<string> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
   
-  console.log("[Gemini] Vérification de la clé API...");
   if (!apiKey) {
-    throw new ApiError("Gemini", "Clé API GEMINI_API_KEY non configurée", {
-      suggestion: "Ajoutez GEMINI_API_KEY dans les secrets du projet (Cloud → Secrets)"
+    throw new ApiError("Lovable AI", "LOVABLE_API_KEY non configurée", {
+      suggestion: "La clé Lovable AI devrait être auto-provisionnée. Contactez le support."
     });
   }
-  console.log(`[Gemini] Clé API présente: ${maskApiKey(apiKey)}`);
-  console.log(`[Gemini] Démarrage de l'extraction OCR pour ${files.length} fichier(s)...`);
 
-  const parts = [
-    { text: GEMINI_EXTRACTION_PROMPT },
-    ...files.map(f => ({
-      inlineData: { mimeType: f.type, data: f.data }
-    }))
+  const messages: Array<{ role: string; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }> = [
+    { role: "system", content: systemPrompt }
   ];
+
+  if (typeof userContent === "string") {
+    messages.push({ role: "user", content: userContent });
+  } else {
+    messages.push({ role: "user", content: userContent });
+  }
 
   let response: Response;
   try {
-    response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 8192,
-          }
-        })
-      }
-    );
+    response = await fetch(LOVABLE_AI_GATEWAY, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        max_tokens: 8192
+      })
+    });
   } catch (networkError) {
-    throw new ApiError("Gemini", "Erreur réseau lors de la connexion à l'API Gemini", {
+    throw new ApiError("Lovable AI", "Erreur réseau lors de la connexion", {
       details: networkError instanceof Error ? networkError.message : "Erreur inconnue",
       suggestion: "Vérifiez la connectivité réseau ou réessayez"
     });
@@ -571,39 +572,61 @@ async function callGeminiOCR(files: Array<{ type: string; data: string }>): Prom
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("[Gemini] Erreur API:", response.status, errorText);
+    console.error(`[Lovable AI - ${model}] Erreur:`, response.status, errorText);
     
-    let errorDetails = "";
-    let suggestion = "Vérifiez que la clé API est valide";
-    
-    if (response.status === 400) {
-      errorDetails = "Requête invalide - format de fichier non supporté ou données corrompues";
-      suggestion = "Vérifiez que les fichiers sont des PDF ou images valides";
-    } else if (response.status === 401 || response.status === 403) {
-      errorDetails = "Authentification échouée - clé API invalide ou expirée";
-      suggestion = "Vérifiez et mettez à jour la clé GEMINI_API_KEY dans les secrets";
-    } else if (response.status === 429) {
-      errorDetails = "Quota dépassé ou trop de requêtes";
-      suggestion = "Attendez quelques minutes ou augmentez votre quota Gemini";
-    } else if (response.status >= 500) {
-      errorDetails = "Erreur serveur Gemini";
-      suggestion = "Réessayez dans quelques instants";
+    if (response.status === 429) {
+      throw new ApiError("Lovable AI", "Limite de requêtes atteinte", {
+        statusCode: 429,
+        suggestion: "Attendez quelques instants ou ajoutez des crédits à votre workspace"
+      });
+    }
+    if (response.status === 402) {
+      throw new ApiError("Lovable AI", "Crédits insuffisants", {
+        statusCode: 402,
+        suggestion: "Ajoutez des crédits dans Settings → Workspace → Usage"
+      });
     }
     
-    throw new ApiError("Gemini", `Erreur API Gemini`, {
+    throw new ApiError("Lovable AI", `Erreur API (${response.status})`, {
       statusCode: response.status,
-      details: errorDetails || errorText.substring(0, 200),
-      suggestion
+      details: errorText.substring(0, 200),
+      suggestion: "Réessayez dans quelques instants"
     });
   }
 
   const result = await response.json();
-  const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  
+  return result.choices?.[0]?.message?.content || "";
+}
+
+async function callGeminiOCR(files: Array<{ type: string; data: string }>): Promise<ExtractedData> {
+  console.log(`[Gemini 2.5 Flash] Démarrage de l'extraction OCR pour ${files.length} fichier(s)...`);
+
+  // Préparer les messages multimodaux pour Lovable AI
+  const userContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+    { type: "text", text: GEMINI_EXTRACTION_PROMPT }
+  ];
+
+  // Ajouter chaque fichier comme image
+  for (const file of files) {
+    userContent.push({
+      type: "image_url",
+      image_url: {
+        url: `data:${file.type};base64,${file.data}`
+      }
+    });
+  }
+
+  const text = await callLovableAI(
+    MODELS.OCR,
+    "Tu es un expert en analyse de documents d'entreprise française. Réponds uniquement en JSON valide.",
+    userContent,
+    0.1
+  );
+
   if (!text) {
-    throw new ApiError("Gemini", "Réponse vide de l'API Gemini", {
+    throw new ApiError("Gemini 2.5 Flash", "Réponse vide", {
       details: "Aucun texte extrait des documents",
-      suggestion: "Vérifiez que les documents sont lisibles et contiennent du texte"
+      suggestion: "Vérifiez que les documents sont lisibles"
     });
   }
   
@@ -614,13 +637,13 @@ async function callGeminiOCR(files: Array<{ type: string; data: string }>): Prom
   
   try {
     const parsed = JSON.parse(jsonStr);
-    console.log("[Gemini] ✅ Extraction OCR terminée avec succès");
+    console.log("[Gemini 2.5 Flash] ✅ Extraction OCR terminée avec succès");
     return parsed;
   } catch (parseError) {
-    console.error("[Gemini] Erreur parsing JSON:", jsonStr.substring(0, 500));
-    throw new ApiError("Gemini", "Impossible de parser la réponse JSON de Gemini", {
+    console.error("[Gemini 2.5 Flash] Erreur parsing JSON:", jsonStr.substring(0, 500));
+    throw new ApiError("Gemini 2.5 Flash", "Impossible de parser la réponse JSON", {
       details: "La réponse n'est pas un JSON valide",
-      suggestion: "Les documents peuvent être difficiles à lire, essayez avec des fichiers de meilleure qualité"
+      suggestion: "Les documents peuvent être difficiles à lire"
     });
   }
 }
@@ -630,66 +653,16 @@ async function callOpenAIAnalysis(extractedData: ExtractedData): Promise<{
   recommandation: AnalysisResult["recommandation"];
   seuilAccordable: number;
 }> {
-  const apiKey = Deno.env.get("OPENAI_API_KEY");
-  
-  console.log("[OpenAI] Vérification de la clé API...");
-  if (!apiKey) {
-    throw new ApiError("OpenAI", "Clé API OPENAI_API_KEY non configurée", {
-      suggestion: "Ajoutez OPENAI_API_KEY dans les secrets du projet (Cloud → Secrets)"
-    });
-  }
-  console.log(`[OpenAI] Clé API présente: ${maskApiKey(apiKey)}`);
-  console.log("[OpenAI] Démarrage de l'analyse financière...");
+  console.log("[GPT-5] Démarrage de l'analyse financière...");
 
   const prompt = OPENAI_ANALYSIS_PROMPT.replace("{EXTRACTED_DATA}", JSON.stringify(extractedData, null, 2));
 
-  let response: Response;
-  try {
-    response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: "Tu es un analyste crédit expert. Réponds uniquement en JSON valide." },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.2,
-        max_tokens: 4096
-      })
-    });
-  } catch (networkError) {
-    throw new ApiError("OpenAI", "Erreur réseau lors de la connexion à l'API OpenAI", {
-      details: networkError instanceof Error ? networkError.message : "Erreur inconnue",
-      suggestion: "Vérifiez la connectivité réseau ou réessayez"
-    });
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("[OpenAI] Erreur API:", response.status, errorText);
-    
-    let suggestion = "Vérifiez que la clé API est valide";
-    if (response.status === 401) {
-      suggestion = "Clé API invalide - vérifiez OPENAI_API_KEY dans les secrets";
-    } else if (response.status === 429) {
-      suggestion = "Quota dépassé - vérifiez votre compte OpenAI ou attendez";
-    } else if (response.status === 500 || response.status === 503) {
-      suggestion = "Erreur serveur OpenAI - réessayez dans quelques instants";
-    }
-    
-    throw new ApiError("OpenAI", "Erreur API OpenAI", {
-      statusCode: response.status,
-      details: errorText.substring(0, 200),
-      suggestion
-    });
-  }
-
-  const result = await response.json();
-  const text = result.choices?.[0]?.message?.content || "";
+  const text = await callLovableAI(
+    MODELS.FINANCIAL_ANALYSIS,
+    "Tu es un analyste crédit expert avec 20 ans d'expérience. Réponds uniquement en JSON valide.",
+    prompt,
+    0.2
+  );
   
   let jsonStr = text;
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -697,11 +670,11 @@ async function callOpenAIAnalysis(extractedData: ExtractedData): Promise<{
   
   try {
     const parsed = JSON.parse(jsonStr);
-    console.log("[OpenAI] ✅ Analyse financière terminée avec succès");
+    console.log("[GPT-5] ✅ Analyse financière terminée avec succès");
     return parsed;
   } catch {
-    console.error("[OpenAI] Erreur parsing JSON");
-    throw new ApiError("OpenAI", "Impossible de parser la réponse JSON d'OpenAI", {
+    console.error("[GPT-5] Erreur parsing JSON");
+    throw new ApiError("GPT-5", "Impossible de parser la réponse JSON", {
       suggestion: "Réessayez l'analyse"
     });
   }
@@ -766,56 +739,34 @@ async function callPerplexityMarket(
   }
 }
 
-async function callCohereSynthesis(
+async function callSynthesis(
   extractedData: ExtractedData,
   financialAnalysis: { score: AnalysisResult["score"]; recommandation: string },
   sectorAnalysis: AnalysisResult["analyseSectorielle"]
 ): Promise<AnalysisResult["syntheseNarrative"]> {
-  const apiKey = Deno.env.get("COHERE_API_KEY");
-  if (!apiKey) {
-    console.log("[Cohere] API key not configured, skipping synthesis");
-    return undefined;
-  }
-
-  console.log("[Cohere] Starting narrative synthesis...");
+  console.log("[GPT-5-mini] Démarrage de la synthèse narrative...");
 
   const prompt = COHERE_SYNTHESIS_PROMPT
     .replace("{EXTRACTED_DATA}", JSON.stringify(extractedData, null, 2))
     .replace("{FINANCIAL_ANALYSIS}", JSON.stringify(financialAnalysis, null, 2))
     .replace("{SECTOR_ANALYSIS}", JSON.stringify(sectorAnalysis || {}, null, 2));
 
-  const response = await fetch("https://api.cohere.ai/v1/chat", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "command-r-plus",
-      message: prompt,
-      temperature: 0.3,
-      preamble: "Tu es un rédacteur expert en rapports bancaires. Réponds uniquement en JSON valide."
-    })
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("[Cohere] Error:", error);
-    return undefined;
-  }
-
-  const result = await response.json();
-  const text = result.text || "";
-  
-  let jsonStr = text;
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (jsonMatch) jsonStr = jsonMatch[1].trim();
-  
   try {
-    console.log("[Cohere] Synthesis complete");
+    const text = await callLovableAI(
+      MODELS.SYNTHESIS,
+      "Tu es un rédacteur expert en rapports bancaires. Réponds uniquement en JSON valide.",
+      prompt,
+      0.3
+    );
+
+    let jsonStr = text;
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) jsonStr = jsonMatch[1].trim();
+
+    console.log("[GPT-5-mini] ✅ Synthèse narrative terminée");
     return JSON.parse(jsonStr);
-  } catch {
-    console.log("[Cohere] Failed to parse response");
+  } catch (error) {
+    console.error("[GPT-5-mini] Erreur:", error);
     return undefined;
   }
 }
@@ -825,53 +776,29 @@ async function analyzeClientNeed(
   extractedData: ExtractedData,
   financialAnalysis: { score: AnalysisResult["score"]; recommandation: string; seuilAccordable: number }
 ): Promise<BesoinAnalyse | undefined> {
-  const apiKey = Deno.env.get("OPENAI_API_KEY");
-  if (!apiKey) {
-    console.log("[Besoin] OpenAI API key not configured, using fallback");
-    return calculateFallbackBesoinAnalysis(extractedData, financialAnalysis);
-  }
-
-  console.log("[Besoin] Starting client need analysis...");
+  console.log("[GPT-5] Démarrage de l'analyse du besoin client...");
 
   const prompt = BESOIN_ANALYSIS_PROMPT
     .replace("{EXTRACTED_DATA}", JSON.stringify(extractedData, null, 2))
     .replace("{FINANCIAL_ANALYSIS}", JSON.stringify(financialAnalysis, null, 2));
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: "Tu es un expert en structuration de financement professionnel. Réponds uniquement en JSON valide." },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.2,
-        max_tokens: 4096
-      })
-    });
+    const text = await callLovableAI(
+      MODELS.NEED_ANALYSIS,
+      "Tu es un expert en structuration de financement professionnel. Réponds uniquement en JSON valide.",
+      prompt,
+      0.2
+    );
 
-    if (!response.ok) {
-      console.error("[Besoin] OpenAI error, using fallback");
-      return calculateFallbackBesoinAnalysis(extractedData, financialAnalysis);
-    }
-
-    const result = await response.json();
-    const text = result.choices?.[0]?.message?.content || "";
-    
     let jsonStr = text;
     const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (jsonMatch) jsonStr = jsonMatch[1].trim();
     
     const parsed = JSON.parse(jsonStr);
-    console.log("[Besoin] ✅ Client need analysis complete");
+    console.log("[GPT-5] ✅ Analyse du besoin client terminée");
     return parsed;
   } catch (error) {
-    console.error("[Besoin] Error:", error);
+    console.error("[GPT-5] Erreur analyse besoin, fallback:", error);
     return calculateFallbackBesoinAnalysis(extractedData, financialAnalysis);
   }
 }
@@ -1302,7 +1229,7 @@ serve(async (req) => {
     let extractedData: ExtractedData;
     try {
       extractedData = await callGeminiOCR(files);
-      modelsUsed.push("Gemini 2.0 Flash (OCR)");
+      modelsUsed.push("Gemini 2.5 Flash (OCR)");
       console.log("✅ Phase 1 terminée avec succès");
     } catch (error) {
       if (error instanceof ApiError) {
@@ -1354,7 +1281,7 @@ serve(async (req) => {
     
     try {
       financialAnalysis = await callOpenAIAnalysis(extractedData);
-      modelsUsed.push("GPT-4o (Analyse financière)");
+      modelsUsed.push("GPT-5 (Analyse financière)");
     } catch (error) {
       console.error("OpenAI analysis failed, using fallback:", error);
       financialAnalysis = calculateFallbackScore(extractedData);
@@ -1374,7 +1301,7 @@ serve(async (req) => {
         seuilAccordable: financialAnalysis.seuilAccordable
       });
       if (besoinAnalyse) {
-        modelsUsed.push("GPT-4o (Analyse besoin & produit)");
+        modelsUsed.push("GPT-5 (Analyse besoin & produit)");
         console.log(`✅ Produit recommandé: ${besoinAnalyse.produitRecommande.nom}`);
       }
     } catch (error) {
@@ -1407,13 +1334,13 @@ serve(async (req) => {
 
     // Now run synthesis with all data including besoin analysis
     try {
-      syntheseNarrative = await callCohereSynthesis(
+      syntheseNarrative = await callSynthesis(
         extractedData,
         { score: financialAnalysis.score, recommandation: financialAnalysis.recommandation || "RESERVES" },
         analyseSectorielle
       );
       if (syntheseNarrative) {
-        modelsUsed.push("Cohere Command R+ (Synthèse narrative)");
+        modelsUsed.push("GPT-5-mini (Synthèse narrative)");
       }
     } catch (error) {
       console.error("Cohere failed:", error);
