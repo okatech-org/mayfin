@@ -139,7 +139,7 @@ export function DocumentDropzone({
                     {isDragOver ? 'Déposez vos documents ici' : 'Glissez vos documents ici'}
                 </p>
                 <p className="text-sm text-muted-foreground mb-4">
-                    ou cliquez pour sélectionner des fichiers
+                    ou cliquez pour sélectionner des fichiers ou prendre des photos
                 </p>
 
                 <input
