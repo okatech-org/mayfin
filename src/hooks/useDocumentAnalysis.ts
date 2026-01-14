@@ -357,7 +357,7 @@ export function useDocumentAnalysis() {
             siret?: string; 
             montantDemande?: number; 
             apportClient?: number; 
-            typesBien?: string[]; 
+            typesBien?: { type: string; montant?: number }[]; 
             contextesDossier?: string[];
             disableCompression?: boolean;
         }

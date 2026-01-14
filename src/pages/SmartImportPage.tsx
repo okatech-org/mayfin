@@ -29,10 +29,15 @@ import { useAnalyseHistory } from '@/hooks/useAnalyseHistory';
 import { useCreateDossier } from '@/hooks/useDossiers';
 import { toast } from 'sonner';
 
-type TypeBien = 'vehicule' | 'materiel' | 'immobilier' | 'informatique' | 'bfr' | 'autre';
+type TypeBienCode = 'vehicule' | 'materiel' | 'immobilier' | 'informatique' | 'bfr' | 'autre';
 type ContexteDossier = 'entreprise_existante' | 'creation_entreprise' | 'reprise_activite';
 
-const TYPE_BIEN_OPTIONS: { value: TypeBien; label: string; icon: typeof Car }[] = [
+interface TypeBienItem {
+    type: TypeBienCode;
+    montant?: number;
+}
+
+const TYPE_BIEN_OPTIONS: { value: TypeBienCode; label: string; icon: typeof Car }[] = [
     { value: 'vehicule', label: 'Véhicule', icon: Car },
     { value: 'materiel', label: 'Matériel / Équipement', icon: Wrench },
     { value: 'immobilier', label: 'Immobilier', icon: Building },
@@ -53,7 +58,8 @@ export default function SmartImportPage() {
     const [siret, setSiret] = useState('');
     const [montantDemande, setMontantDemande] = useState('');
     const [apportClient, setApportClient] = useState('');
-    const [typesBien, setTypesBien] = useState<TypeBien[]>([]);
+    const [typesBien, setTypesBien] = useState<TypeBienItem[]>([]);
+    const [newTypeMontant, setNewTypeMontant] = useState<string>('');
     const [contextesDossier, setContextesDossier] = useState<ContexteDossier[]>([]);
     const [disableCompression, setDisableCompression] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
@@ -77,7 +83,7 @@ export default function SmartImportPage() {
             siret: siret || undefined,
             montantDemande: montantDemande ? parseFloat(montantDemande) : undefined,
             apportClient: apportClient ? parseFloat(apportClient) : undefined,
-            typesBien: typesBien.length > 0 ? typesBien : undefined,
+            typesBien: typesBien.length > 0 ? typesBien.map(t => ({ type: t.type, montant: t.montant })) : undefined,
             contextesDossier: contextesDossier.length > 0 ? contextesDossier : undefined,
             disableCompression,
         });
@@ -90,14 +96,24 @@ export default function SmartImportPage() {
         }
     }, [files, siret, montantDemande, apportClient, typesBien, contextesDossier, disableCompression, analyzeDocuments]);
 
-    const handleAddTypeBien = (type: TypeBien) => {
-        if (!typesBien.includes(type)) {
-            setTypesBien([...typesBien, type]);
+    const handleAddTypeBien = (type: TypeBienCode) => {
+        if (!typesBien.some(t => t.type === type)) {
+            const montant = newTypeMontant ? parseFloat(newTypeMontant) : undefined;
+            setTypesBien([...typesBien, { type, montant }]);
+            setNewTypeMontant('');
         }
     };
 
-    const handleRemoveTypeBien = (type: TypeBien) => {
-        setTypesBien(typesBien.filter(t => t !== type));
+    const handleRemoveTypeBien = (type: TypeBienCode) => {
+        setTypesBien(typesBien.filter(t => t.type !== type));
+    };
+
+    const handleUpdateTypeBienMontant = (type: TypeBienCode, montant: string) => {
+        setTypesBien(typesBien.map(t => 
+            t.type === type 
+                ? { ...t, montant: montant ? parseFloat(montant) : undefined }
+                : t
+        ));
     };
 
     const handleToggleContexte = (contexte: ContexteDossier) => {
@@ -299,56 +315,76 @@ export default function SmartImportPage() {
 
                                 <div className="space-y-2">
                                     <Label>Types de bien financé</Label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {typesBien.map((type) => {
-                                            const option = TYPE_BIEN_OPTIONS.find(o => o.value === type);
+                                    <div className="space-y-2 mb-3">
+                                        {typesBien.map((item) => {
+                                            const option = TYPE_BIEN_OPTIONS.find(o => o.value === item.type);
                                             if (!option) return null;
                                             const Icon = option.icon;
                                             return (
-                                                <Badge 
-                                                    key={type}
-                                                    variant="secondary" 
-                                                    className="flex items-center gap-1 pr-1"
+                                                <div 
+                                                    key={item.type}
+                                                    className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg"
                                                 >
-                                                    <Icon className="h-3 w-3" />
-                                                    {option.label}
+                                                    <Badge variant="secondary" className="flex items-center gap-1">
+                                                        <Icon className="h-3 w-3" />
+                                                        {option.label}
+                                                    </Badge>
+                                                    <Input
+                                                        type="number"
+                                                        placeholder="Montant (optionnel)"
+                                                        value={item.montant || ''}
+                                                        onChange={(e) => handleUpdateTypeBienMontant(item.type, e.target.value)}
+                                                        className="w-32 h-8 text-sm"
+                                                        disabled={isAnalyzing}
+                                                    />
+                                                    <span className="text-xs text-muted-foreground">€</span>
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        className="h-4 w-4 p-0 ml-1 hover:bg-destructive/20 rounded-full"
-                                                        onClick={() => handleRemoveTypeBien(type)}
+                                                        className="h-6 w-6 p-0 ml-auto hover:bg-destructive/20 rounded-full"
+                                                        onClick={() => handleRemoveTypeBien(item.type)}
                                                         disabled={isAnalyzing}
                                                     >
                                                         <X className="h-3 w-3" />
                                                     </Button>
-                                                </Badge>
+                                                </div>
                                             );
                                         })}
                                     </div>
-                                    <Select 
-                                        value="" 
-                                        onValueChange={(v) => handleAddTypeBien(v as TypeBien)}
-                                        disabled={isAnalyzing}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Ajouter un type de bien" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-background border">
-                                            {TYPE_BIEN_OPTIONS.filter(o => !typesBien.includes(o.value)).map((option) => {
-                                                const Icon = option.icon;
-                                                return (
-                                                    <SelectItem key={option.value} value={option.value}>
-                                                        <div className="flex items-center gap-2">
-                                                            <Icon className="h-4 w-4 text-muted-foreground" />
-                                                            <span>{option.label}</span>
-                                                        </div>
-                                                    </SelectItem>
-                                                );
-                                            })}
-                                        </SelectContent>
-                                    </Select>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            type="number"
+                                            placeholder="Montant €"
+                                            value={newTypeMontant}
+                                            onChange={(e) => setNewTypeMontant(e.target.value)}
+                                            className="w-28"
+                                            disabled={isAnalyzing}
+                                        />
+                                        <Select 
+                                            value="" 
+                                            onValueChange={(v) => handleAddTypeBien(v as TypeBienCode)}
+                                            disabled={isAnalyzing}
+                                        >
+                                            <SelectTrigger className="flex-1">
+                                                <SelectValue placeholder="Ajouter un type de bien" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-background border">
+                                                {TYPE_BIEN_OPTIONS.filter(o => !typesBien.some(t => t.type === o.value)).map((option) => {
+                                                    const Icon = option.icon;
+                                                    return (
+                                                        <SelectItem key={option.value} value={option.value}>
+                                                            <div className="flex items-center gap-2">
+                                                                <Icon className="h-4 w-4 text-muted-foreground" />
+                                                                <span>{option.label}</span>
+                                                            </div>
+                                                        </SelectItem>
+                                                    );
+                                                })}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                     <p className="text-xs text-muted-foreground">
-                                        Permet d'orienter vers les produits adaptés (ex: Arval pour véhicules)
+                                        Indiquez le montant prévu pour chaque type de bien (optionnel mais recommandé)
                                     </p>
                                 </div>
                             </div>
