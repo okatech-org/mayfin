@@ -1195,125 +1195,10 @@ export function generateSmartAnalysisPDF(
         }
     }
 
-    // ============ QUESTIONNAIRE BNP (if available) ============
-    if (false && questionnaireResponses && Object.keys(questionnaireResponses).length > 0) {
-        doc.addPage();
-        y = margin;
-
-        addTitle('QUESTIONNAIRE D\'ANALYSE BNP', 12);
-        y += 5;
-
-        // Get applicable questions (based on financing type if available)
-        const typeFinancement = data?.financement?.typeInvestissement?.toLowerCase();
-        const questions = getApplicableQuestions(typeFinancement);
-
-        // Group questions by section
-        let currentSection = 0;
-        for (const question of questions) {
-            const value = questionnaireResponses[question.code];
-
-            // Skip unanswered questions
-            if (value === undefined || value === null || value === '') {
-                continue;
-            }
-
-            // Section header
-            if (question.section !== currentSection) {
-                currentSection = question.section;
-                const section = QUESTIONNAIRE_SECTIONS.find(s => s.id === currentSection);
-                if (section) {
-                    checkPageBreak(15);
-                    y += 3;
-                    addSubtitle(`${section.label}`, [51, 102, 153]);
-                }
-            }
-
-            checkPageBreak(15);
-
-            // Question label
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'bold');
-            const questionLines = doc.splitTextToSize(question.label, contentWidth - 5);
-            doc.text(questionLines, margin, y);
-            y += questionLines.length * 4;
-
-            // Answer value
-            doc.setFont('helvetica', 'normal');
-            let displayValue: string;
-            if (typeof value === 'boolean') {
-                displayValue = value ? '[OUI]' : '[NON]';
-                if (value) {
-                    doc.setTextColor(39, 174, 96); // green
-                } else {
-                    doc.setTextColor(231, 76, 60); // red
-                }
-            } else {
-                displayValue = String(value);
-            }
-
-            const valueLines = doc.splitTextToSize(`> ${displayValue}`, contentWidth - 10);
-            doc.text(valueLines, margin + 3, y);
-            doc.setTextColor(0, 0, 0);
-            y += valueLines.length * 4 + 3;
-
-            // Check for alert if yes/no
-            if (question.alertIfYes && value === true) {
-                doc.setFontSize(8);
-                doc.setTextColor(231, 76, 60);
-                doc.text(`/!\\ ${question.alertIfYes}`, margin + 3, y);
-                doc.setTextColor(0, 0, 0);
-                y += 5;
-            }
-            if (question.alertIfNo && value === false) {
-                doc.setFontSize(8);
-                doc.setTextColor(231, 76, 60);
-                doc.text(`/!\\ ${question.alertIfNo}`, margin + 3, y);
-                doc.setTextColor(0, 0, 0);
-                y += 5;
-            }
-
-            // Handle sub-questions
-            if (question.subQuestions) {
-                for (const sq of question.subQuestions) {
-                    const sqValue = questionnaireResponses[sq.code];
-                    if (sqValue === undefined || sqValue === null || sqValue === '') continue;
-
-                    // Check condition
-                    if (sq.condition?.field) {
-                        const parentValue = questionnaireResponses[sq.condition.field];
-                        if (parentValue !== sq.condition.value) continue;
-                    }
-
-                    checkPageBreak(10);
-                    doc.setFontSize(8);
-                    doc.setFont('helvetica', 'italic');
-                    doc.text(`  > ${sq.label}:`, margin + 5, y);
-                    y += 4;
-                    doc.setFont('helvetica', 'normal');
-                    const sqLines = doc.splitTextToSize(String(sqValue), contentWidth - 15);
-                    doc.text(sqLines, margin + 8, y);
-                    y += sqLines.length * 4 + 2;
-                }
-            }
-        }
-    }
-
-    // ============ WATERMARK & FOOTER ON ALL PAGES ============
+    // ============ FOOTER ON ALL PAGES ============
     const totalPages = doc.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-
-        // Diagonal watermark "CONFIDENTIEL" with low opacity
-        doc.setFontSize(55);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(220, 220, 220); // Light gray for watermark effect
-
-        // Draw watermark in center with rotation
-        const text = 'CONFIDENTIEL';
-        doc.text(text, pageWidth / 2, pageHeight / 2, {
-            align: 'center',
-            angle: 45
-        });
 
         // Reset text color for footer
         doc.setTextColor(128, 128, 128);
@@ -1326,8 +1211,8 @@ export function generateSmartAnalysisPDF(
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
 
-        // Left: Document confidentiel - MayFin
-        doc.text('Document confidentiel - MayFin', margin, pageHeight - 7);
+        // Left: MayFin
+        doc.text('MayFin', margin, pageHeight - 7);
 
         // Center: Date de génération
         doc.text(`Généré le ${formatDate()}`, pageWidth / 2, pageHeight - 7, { align: 'center' });
