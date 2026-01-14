@@ -712,6 +712,12 @@ async function callLovableAI(
     messages.push({ role: "user", content: userContent });
   }
 
+  // OpenAI models require max_completion_tokens, others use max_tokens
+  const isOpenAIModel = model.startsWith("openai/");
+  const tokenParam = isOpenAIModel 
+    ? { max_completion_tokens: 8192 }
+    : { max_tokens: 8192 };
+
   let response: Response;
   try {
     response = await fetch(LOVABLE_AI_GATEWAY, {
@@ -724,7 +730,7 @@ async function callLovableAI(
         model,
         messages,
         temperature,
-        max_tokens: 8192
+        ...tokenParam
       })
     });
   } catch (networkError) {
