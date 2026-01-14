@@ -150,18 +150,43 @@ export function DocumentDropzone({
                     {isDragOver ? 'Déposez vos documents ici' : 'Glissez vos documents ici'}
                 </p>
                 <p className="text-sm text-muted-foreground mb-4">
-                    ou cliquez pour sélectionner des fichiers ou prendre des photos
+                    ou sélectionnez des fichiers
                 </p>
 
+                {/* Hidden file input for general file selection */}
                 <input
+                    id="file-input"
                     type="file"
                     multiple
                     accept={ACCEPTED_TYPES.join(',')}
-                    capture="environment"
                     onChange={handleFileSelect}
                     disabled={disabled || files.length >= maxFiles}
                     className="absolute inset-0 cursor-pointer opacity-0"
                 />
+
+                {/* Buttons for mobile */}
+                <div className="flex flex-wrap justify-center gap-3 mb-4 relative z-10">
+                    <label 
+                        htmlFor="camera-input"
+                        className={cn(
+                            "inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer",
+                            "bg-primary text-primary-foreground hover:bg-primary/90",
+                            (disabled || files.length >= maxFiles) && "opacity-50 cursor-not-allowed"
+                        )}
+                    >
+                        <Camera className="h-4 w-4" />
+                        Prendre une photo
+                    </label>
+                    <input
+                        id="camera-input"
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleFileSelect}
+                        disabled={disabled || files.length >= maxFiles}
+                        className="hidden"
+                    />
+                </div>
 
                 <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
                     <Badge variant="outline">PDF</Badge>
