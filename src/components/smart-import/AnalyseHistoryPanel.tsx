@@ -15,7 +15,8 @@ import {
     Download,
     Pencil,
     Check,
-    X as XIcon
+    X as XIcon,
+    RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ import { AnalysisComparisonModal } from './AnalysisComparisonModal';
 interface AnalyseHistoryPanelProps {
     dossierId?: string;
     onSelectAnalysis?: (entry: AnalyseHistoryEntry) => void;
+    onReloadAnalysis?: (entry: AnalyseHistoryEntry) => void;
 }
 
 function ScoreChange({ change, label }: { change: number; label: string }) {
@@ -124,6 +126,7 @@ function HistoryEntryCard({
     entry, 
     onDelete, 
     onSelect,
+    onReload,
     onUpdateNotes,
     isDeleting,
     isUpdatingNotes
@@ -131,6 +134,7 @@ function HistoryEntryCard({
     entry: AnalyseHistoryEntry; 
     onDelete: () => void;
     onSelect?: () => void;
+    onReload?: () => void;
     onUpdateNotes: (notes: string | null) => void;
     isDeleting: boolean;
     isUpdatingNotes: boolean;
@@ -330,6 +334,17 @@ function HistoryEntryCard({
                         </div>
 
                         <div className="flex gap-2 pt-2">
+                            {onReload && (
+                                <Button 
+                                    variant="default" 
+                                    size="sm" 
+                                    onClick={onReload}
+                                    className="flex-1"
+                                >
+                                    <RotateCcw className="h-4 w-4 mr-2" />
+                                    Recharger
+                                </Button>
+                            )}
                             <Button 
                                 variant="outline" 
                                 size="sm" 
@@ -337,12 +352,12 @@ function HistoryEntryCard({
                                 className="flex-1"
                             >
                                 <Download className="h-4 w-4 mr-2" />
-                                Export PDF
+                                PDF
                             </Button>
                             {onSelect && (
                                 <Button variant="outline" size="sm" onClick={onSelect} className="flex-1">
                                     <FileText className="h-4 w-4 mr-2" />
-                                    Voir détails
+                                    Détails
                                 </Button>
                             )}
                             <AlertDialog>
@@ -374,7 +389,7 @@ function HistoryEntryCard({
     );
 }
 
-export function AnalyseHistoryPanel({ dossierId, onSelectAnalysis }: AnalyseHistoryPanelProps) {
+export function AnalyseHistoryPanel({ dossierId, onSelectAnalysis, onReloadAnalysis }: AnalyseHistoryPanelProps) {
     const [selectedForCompare, setSelectedForCompare] = useState<AnalyseHistoryEntry[]>([]);
     const [showComparison, setShowComparison] = useState(false);
     
@@ -505,6 +520,7 @@ export function AnalyseHistoryPanel({ dossierId, onSelectAnalysis }: AnalyseHist
                                         entry={entry}
                                         onDelete={() => deleteFromHistory(entry.id)}
                                         onSelect={onSelectAnalysis ? () => onSelectAnalysis(entry) : undefined}
+                                        onReload={onReloadAnalysis ? () => onReloadAnalysis(entry) : undefined}
                                         onUpdateNotes={(notes) => updateNotes({ id: entry.id, notes })}
                                         isDeleting={isDeleting}
                                         isUpdatingNotes={isUpdatingNotes}
