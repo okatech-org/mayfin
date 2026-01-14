@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, FileQuestion, ArrowRight, Car, Laptop, Building, Coins, Wrench, Package, History, Settings2, ImageOff, ChevronUp, ChevronDown, Save, StickyNote, Plus, X } from 'lucide-react';
+import { Sparkles, FileQuestion, ArrowRight, Car, Laptop, Building, Coins, Wrench, Package, History, Settings2, ImageOff, ChevronUp, ChevronDown, Save, StickyNote, Plus, X, Wand2, Loader2 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Header } from '@/components/layout/Header';
 import { Input } from '@/components/ui/input';
@@ -68,6 +68,7 @@ export default function SmartImportPage() {
     const [analysisNotes, setAnalysisNotes] = useState('');
     const [pendingAnalysisResult, setPendingAnalysisResult] = useState<AnalysisResult | null>(null);
     const [pendingSourceFiles, setPendingSourceFiles] = useState<string[]>([]);
+    const [isPreAnalyzing, setIsPreAnalyzing] = useState(false);
 
     const { step, progress, uploadProgress, result, error, isAnalyzing, isDemoMode, analyzeDocuments, reset, cancel, loadFromHistory } = useDocumentAnalysis();
     const { saveToHistory, isSaving } = useAnalyseHistory();
@@ -123,6 +124,114 @@ export default function SmartImportPage() {
             setContextesDossier([...contextesDossier, contexte]);
         }
     };
+
+    // Pre-analysis function to auto-fill form fields from documents
+    const handlePreAnalyze = useCallback(async () => {
+        if (files.length === 0) {
+            toast.error('Veuillez d\'abord sélectionner des documents');
+            return;
+        }
+
+        setIsPreAnalyzing(true);
+        toast.info('Pré-analyse en cours...', { duration: 2000 });
+
+        try {
+            // Call the analysis API in a lightweight mode just to extract basic info
+            const formData = new FormData();
+            files.forEach((file) => {
+                formData.append('files', file);
+            });
+
+            const { data: session } = await (await import('@/integrations/supabase/client')).supabase.auth.getSession();
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            
+            const response = await fetch(`${supabaseUrl}/functions/v1/analyze-documents`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session?.session?.access_token || ''}`,
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Erreur lors de la pré-analyse');
+            }
+
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                const { entreprise, financement } = result.data;
+                let fieldsUpdated = 0;
+
+                // Auto-fill SIRET if found and empty
+                if (entreprise?.siret && !siret) {
+                    setSiret(entreprise.siret);
+                    fieldsUpdated++;
+                } else if (entreprise?.siren && !siret) {
+                    setSiret(entreprise.siren);
+                    fieldsUpdated++;
+                }
+
+                // Auto-fill montant if found and empty
+                if (financement?.montantDemande && !montantDemande) {
+                    setMontantDemande(String(financement.montantDemande));
+                    fieldsUpdated++;
+                }
+
+                // Auto-fill apport if found and empty
+                if (financement?.apportClient && !apportClient) {
+                    setApportClient(String(financement.apportClient));
+                    fieldsUpdated++;
+                }
+
+                // Auto-detect type d'investissement if we have details
+                if (financement?.typeInvestissement && typesBien.length === 0) {
+                    const typeMapping: Record<string, TypeBienCode> = {
+                        'vehicule': 'vehicule',
+                        'materiel': 'materiel',
+                        'immobilier': 'immobilier',
+                        'bfr': 'bfr',
+                        'informatique': 'informatique',
+                        'autre': 'autre'
+                    };
+                    
+                    const detectedType = typeMapping[financement.typeInvestissement] || 'autre';
+                    setTypesBien([{ type: detectedType, montant: financement.montantDemande }]);
+                    fieldsUpdated++;
+                }
+
+                // Try to detect context from documents
+                if (contextesDossier.length === 0) {
+                    // If we have creation date very recent or no financial history, likely a creation
+                    const hasFinancialHistory = result.data.finances?.annees && result.data.finances.annees.length > 0;
+                    
+                    if (!hasFinancialHistory && financement?.objetFinancement?.toLowerCase().includes('création')) {
+                        setContextesDossier(['creation_entreprise']);
+                        fieldsUpdated++;
+                    } else if (financement?.objetFinancement?.toLowerCase().includes('reprise')) {
+                        setContextesDossier(['reprise_activite']);
+                        fieldsUpdated++;
+                    } else if (hasFinancialHistory) {
+                        setContextesDossier(['entreprise_existante']);
+                        fieldsUpdated++;
+                    }
+                }
+
+                if (fieldsUpdated > 0) {
+                    toast.success(`${fieldsUpdated} champ(s) rempli(s) automatiquement`);
+                } else {
+                    toast.info('Aucune nouvelle information détectée dans les documents');
+                }
+            } else {
+                toast.warning('Pré-analyse terminée mais aucune donnée exploitable trouvée');
+            }
+        } catch (error) {
+            console.error('Erreur pré-analyse:', error);
+            toast.error('Erreur lors de la pré-analyse. Réessayez ou remplissez manuellement.');
+        } finally {
+            setIsPreAnalyzing(false);
+        }
+    }, [files, siret, montantDemande, apportClient, typesBien.length, contextesDossier.length]);
 
     const handleSaveToHistory = useCallback(async (withNotes: boolean) => {
         if (!pendingAnalysisResult) return;
@@ -286,10 +395,31 @@ export default function SmartImportPage() {
 
                         {/* Optional fields */}
                         <div className="rounded-xl border bg-card p-6">
-                            <div className="flex items-center gap-2 mb-4">
-                                <FileQuestion className="h-5 w-5 text-muted-foreground" />
-                                <h3 className="font-medium text-foreground">Informations complémentaires</h3>
-                                <span className="text-xs text-muted-foreground">(optionnel)</span>
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <FileQuestion className="h-5 w-5 text-muted-foreground" />
+                                    <h3 className="font-medium text-foreground">Informations complémentaires</h3>
+                                    <span className="text-xs text-muted-foreground">(optionnel)</span>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handlePreAnalyze}
+                                    disabled={files.length === 0 || isAnalyzing || isPreAnalyzing}
+                                    className="gap-2"
+                                >
+                                    {isPreAnalyzing ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Pré-analyse...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Wand2 className="h-4 w-4" />
+                                            Auto
+                                        </>
+                                    )}
+                                </Button>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
