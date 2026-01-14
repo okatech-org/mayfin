@@ -297,7 +297,7 @@ export async function generateRapportPDF(
     doc.setFontSize(8);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(128, 128, 128);
-    doc.text('Document généré automatiquement - Confidentiel', pageWidth / 2, y, { align: 'center' });
+    doc.text('Document confidentiel - Usage interne', pageWidth / 2, y, { align: 'center' });
 
     // Save
     const filename = `rapport_analyse_${dossier.siren}_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -407,17 +407,17 @@ export function generateSmartAnalysisPDF(
 
     // ============ PAGE 1: COVER + SCORING ============
     y = 15;
-    
+
     // Compact header
     doc.setFillColor(51, 102, 153);
     doc.roundedRect(margin, y, contentWidth, 18, 2, 2, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text("ANALYSE DE FINANCEMENT - IA", pageWidth / 2, y + 7, { align: 'center' });
+    doc.text("ANALYSE DE FINANCEMENT", pageWidth / 2, y + 7, { align: 'center' });
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text("Rapport Multi-LLM", pageWidth / 2, y + 13, { align: 'center' });
+    doc.text("Rapport d'étude", pageWidth / 2, y + 13, { align: 'center' });
     doc.setTextColor(0, 0, 0);
     y += 22;
 
@@ -444,11 +444,11 @@ export function generateSmartAnalysisPDF(
     // Score box - compact
     const recommandation = analysisResult.recommandation;
     const scoreGlobal = score?.global || 0;
-    
-    const scoreColor = scoreGlobal >= 70 ? [39, 174, 96] 
-        : scoreGlobal >= 45 ? [241, 196, 15] 
-        : [231, 76, 60];
-    
+
+    const scoreColor = scoreGlobal >= 70 ? [39, 174, 96]
+        : scoreGlobal >= 45 ? [241, 196, 15]
+            : [231, 76, 60];
+
     doc.setFillColor(scoreColor[0], scoreColor[1], scoreColor[2]);
     doc.roundedRect(margin, y, contentWidth, 18, 2, 2, 'F');
 
@@ -456,20 +456,16 @@ export function generateSmartAnalysisPDF(
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.text(`SCORE: ${scoreGlobal}/100 • ${recommandation || 'À ÉVALUER'}`, pageWidth / 2, y + 7, { align: 'center' });
-    
+
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.text(`Seuil accordable: ${formatCurrencySpaced(analysisResult.seuilAccordable)}`, pageWidth / 2, y + 13, { align: 'center' });
     doc.setTextColor(0, 0, 0);
     y += 22;
 
-    // Models used - single line
     if (analysisResult.modelsUsed && analysisResult.modelsUsed.length > 0) {
-        doc.setFontSize(7);
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Modèles: ${analysisResult.modelsUsed.join(' • ')}`, pageWidth / 2, y, { align: 'center' });
-        doc.setTextColor(0, 0, 0);
-        y += 6;
+        // Skip model display for confidentiality
+        y += 2;
     }
 
     // ============ SCORING TABLE (on page 1) ============
@@ -501,7 +497,7 @@ export function generateSmartAnalysisPDF(
     // Justifications - compact
     if (score?.justifications) {
         addSubtitle('Justifications détaillées');
-        
+
         const justifLabels: Record<string, string> = {
             solvabilite: 'Solvabilité',
             rentabilite: 'Rentabilité',
@@ -567,12 +563,12 @@ export function generateSmartAnalysisPDF(
         if (besoin.produitRecommande) {
             checkPageBreak(30);
             addSubtitle('Produit recommandé', [39, 174, 96]);
-            
+
             doc.setFontSize(10);
             doc.setFont('helvetica', 'bold');
             doc.text(besoin.produitRecommande.nom, margin, y);
             y += 4;
-            
+
             doc.setFontSize(9);
             doc.setFont('helvetica', 'normal');
             doc.text(besoin.produitRecommande.type || '', margin, y);
@@ -661,8 +657,8 @@ export function generateSmartAnalysisPDF(
     // ANALYSE SECTORIELLE (on same page if space permits)
     if (secteur) {
         checkPageBreak(50);
-        
-        addTitle('ANALYSE SECTORIELLE (IA)', 12);
+
+        addTitle('ANALYSE SECTORIELLE', 12);
         y += 3;
 
         addSubtitle('Contexte de marché');
@@ -711,14 +707,14 @@ export function generateSmartAnalysisPDF(
     // ============ SYNTHÈSE IA (if available) ============
     if (synthese) {
         checkPageBreak(60);
-        
+
         // Start new page if not enough space
         if (y > pageHeight - 80) {
             doc.addPage();
             y = margin;
         }
 
-        addTitle('SYNTHÈSE IA', 12);
+        addTitle('SYNTHÈSE', 12);
         y += 3;
 
         // Executive summary

@@ -35,7 +35,7 @@ export async function generateSmartAnalysisWord(
     // Title
     children.push(
         new Paragraph({
-            text: 'ANALYSE DE FINANCEMENT - IA',
+            text: 'ANALYSE DE FINANCEMENT',
             heading: HeadingLevel.TITLE,
             alignment: AlignmentType.CENTER,
             spacing: { after: 200 }
@@ -44,12 +44,11 @@ export async function generateSmartAnalysisWord(
 
     children.push(
         new Paragraph({
-            text: `Rapport Multi-LLM généré le ${formatDate()}`,
             alignment: AlignmentType.CENTER,
             spacing: { after: 400 },
             children: [
                 new TextRun({
-                    text: `Rapport Multi-LLM généré le ${formatDate()}`,
+                    text: `Rapport d'étude généré le ${formatDate()}`,
                     italics: true,
                     color: '666666'
                 })
@@ -134,8 +133,8 @@ export async function generateSmartAnalysisWord(
             new Paragraph({
                 children: [
                     new TextRun({ text: 'Score global: ', bold: true }),
-                    new TextRun({ 
-                        text: `${score.global}/100`, 
+                    new TextRun({
+                        text: `${score.global}/100`,
                         bold: true,
                         color: score.global >= 70 ? '27AE60' : score.global >= 45 ? 'F1C40F' : 'E74C3C'
                     }),
@@ -172,15 +171,15 @@ export async function generateSmartAnalysisWord(
                 new TableRow({
                     tableHeader: true,
                     children: [
-                        new TableCell({ 
+                        new TableCell({
                             children: [new Paragraph({ text: 'Critère', alignment: AlignmentType.CENTER })],
                             shading: { fill: '3366CC', type: ShadingType.SOLID, color: '3366CC' }
                         }),
-                        new TableCell({ 
+                        new TableCell({
                             children: [new Paragraph({ text: 'Score', alignment: AlignmentType.CENTER })],
                             shading: { fill: '3366CC', type: ShadingType.SOLID, color: '3366CC' }
                         }),
-                        new TableCell({ 
+                        new TableCell({
                             children: [new Paragraph({ text: 'Pondération', alignment: AlignmentType.CENTER })],
                             shading: { fill: '3366CC', type: ShadingType.SOLID, color: '3366CC' }
                         })
@@ -218,7 +217,7 @@ export async function generateSmartAnalysisWord(
         });
 
         children.push(new Paragraph({ children: [] })); // Spacer
-        
+
         // Justifications
         if (score.justifications) {
             children.push(
@@ -430,14 +429,14 @@ export async function generateSmartAnalysisWord(
             rows: [
                 new TableRow({
                     tableHeader: true,
-                    children: ['Année', 'CA', 'Résultat net', 'EBITDA', 'Capitaux propres'].map(h => 
-                        new TableCell({ 
+                    children: ['Année', 'CA', 'Résultat net', 'EBITDA', 'Capitaux propres'].map(h =>
+                        new TableCell({
                             children: [new Paragraph({ text: h, alignment: AlignmentType.CENTER })],
                             shading: { fill: '3366CC', type: ShadingType.SOLID, color: '3366CC' }
                         })
                     )
                 }),
-                ...data.finances.annees.map(annee => 
+                ...data.finances.annees.map(annee =>
                     new TableRow({
                         children: [
                             new TableCell({ children: [new Paragraph({ text: String(annee.annee), alignment: AlignmentType.CENTER })] }),
@@ -537,7 +536,7 @@ export async function generateSmartAnalysisWord(
     if (synthese) {
         children.push(
             new Paragraph({
-                text: 'SYNTHÈSE IA',
+                text: 'SYNTHÈSE',
                 heading: HeadingLevel.HEADING_1,
                 spacing: { before: 400, after: 200 }
             })
@@ -630,33 +629,17 @@ export async function generateSmartAnalysisWord(
         }
     }
 
-    // Models used
-    if (analysisResult.modelsUsed?.length) {
-        children.push(
-            new Paragraph({
-                text: `Modèles IA utilisés: ${analysisResult.modelsUsed.join(', ')}`,
-                spacing: { before: 400 },
-                children: [
-                    new TextRun({
-                        text: `Modèles IA utilisés: ${analysisResult.modelsUsed.join(', ')}`,
-                        italics: true,
-                        color: '999999',
-                        size: 20
-                    })
-                ]
-            })
-        );
-    }
+    // Models used - skip for confidentiality
+    // (Section removed)
 
-    // Footer
     children.push(
         new Paragraph({
-            text: 'Document généré automatiquement - Confidentiel',
+            text: 'Document confidentiel - Usage interne',
             alignment: AlignmentType.CENTER,
             spacing: { before: 400 },
             children: [
                 new TextRun({
-                    text: 'Document généré automatiquement - Confidentiel',
+                    text: 'Document confidentiel - Usage interne',
                     italics: true,
                     color: '999999',
                     size: 18
