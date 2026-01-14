@@ -29,7 +29,7 @@ export function AdminSystemSidebar() {
                     <img 
                         src={logoMayfin} 
                         alt="MayFin" 
-                        className="h-16 w-auto object-contain brightness-0 invert"
+                        className="h-12 w-auto object-contain brightness-0 invert"
                     />
                     <span className="ml-3 text-xs font-medium text-red-400 bg-red-950 px-2 py-0.5 rounded">ADMIN</span>
                 </div>
