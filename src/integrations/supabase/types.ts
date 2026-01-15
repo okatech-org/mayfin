@@ -370,6 +370,30 @@ export type Database = {
         }
         Relationships: []
       }
+      login_attempts: {
+        Row: {
+          attempted_at: string
+          email: string
+          id: string
+          ip_address: string | null
+          success: boolean
+        }
+        Insert: {
+          attempted_at?: string
+          email: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+        }
+        Update: {
+          attempted_at?: string
+          email?: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -570,6 +594,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_lockout_remaining: {
+        Args: { check_email: string; lockout_minutes?: number }
+        Returns: number
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -580,6 +608,22 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      is_account_locked: {
+        Args: {
+          check_email: string
+          lockout_minutes?: number
+          max_attempts?: number
+        }
+        Returns: boolean
+      }
+      record_login_attempt: {
+        Args: {
+          attempt_email: string
+          attempt_ip?: string
+          was_successful?: boolean
+        }
+        Returns: undefined
       }
       update_user_role: {
         Args: {
