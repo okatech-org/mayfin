@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ArrowLeft, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,11 +14,15 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
 import logoMayfin from '@/assets/logo-mayfin.png';
+
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MINUTES = 15;
 
 const loginSchema = z.object({
   email: z.string().email('Email invalide'),
@@ -51,6 +55,8 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
 
   const form = useForm<FormData>({
     resolver: zodResolver(isSignUp ? signupSchema : loginSchema),
@@ -67,7 +73,99 @@ export default function LoginPage() {
     },
   });
 
+  const email = form.watch('email');
+
+  const checkLockout = useCallback(async (emailToCheck: string) => {
+    if (!emailToCheck || !z.string().email().safeParse(emailToCheck).success) {
+      setIsLocked(false);
+      setLockoutRemaining(0);
+      return;
+    }
+
+    try {
+      const { data: isLockedData, error: lockError } = await supabase
+        .rpc('is_account_locked', { 
+          check_email: emailToCheck, 
+          max_attempts: MAX_ATTEMPTS, 
+          lockout_minutes: LOCKOUT_MINUTES 
+        });
+
+      if (lockError) {
+        console.error('Error checking lockout:', lockError);
+        return;
+      }
+
+      setIsLocked(isLockedData || false);
+
+      if (isLockedData) {
+        const { data: remainingData } = await supabase
+          .rpc('get_lockout_remaining', { 
+            check_email: emailToCheck, 
+            lockout_minutes: LOCKOUT_MINUTES 
+          });
+        setLockoutRemaining(remainingData || 0);
+      } else {
+        setLockoutRemaining(0);
+      }
+    } catch (error) {
+      console.error('Error checking lockout status:', error);
+    }
+  }, []);
+
+  // Check lockout when email changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (email) {
+        checkLockout(email);
+      }
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [email, checkLockout]);
+
+  // Countdown timer for lockout
+  useEffect(() => {
+    if (lockoutRemaining > 0) {
+      const interval = setInterval(() => {
+        setLockoutRemaining(prev => {
+          if (prev <= 1) {
+            setIsLocked(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [lockoutRemaining]);
+
+  const formatRemainingTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const recordAttempt = async (attemptEmail: string, success: boolean) => {
+    try {
+      await supabase.rpc('record_login_attempt', {
+        attempt_email: attemptEmail,
+        attempt_ip: null,
+        was_successful: success
+      });
+    } catch (error) {
+      console.error('Error recording login attempt:', error);
+    }
+  };
+
   const onSubmit = async (data: FormData) => {
+    // Check lockout before attempting login
+    if (!isSignUp) {
+      await checkLockout(data.email);
+      if (isLocked) {
+        toast.error('Compte verrouillé. Veuillez patienter.');
+        return;
+      }
+    }
+
     setIsLoading(true);
     const { error } = isSignUp 
       ? await signUp(data.email, data.password)
@@ -76,8 +174,18 @@ export default function LoginPage() {
     setIsLoading(false);
     
     if (error) {
+      // Record failed attempt for login only
+      if (!isSignUp) {
+        await recordAttempt(data.email, false);
+        await checkLockout(data.email);
+      }
       toast.error(error.message || 'Erreur de connexion');
       return;
+    }
+    
+    // Record successful attempt for login only
+    if (!isSignUp) {
+      await recordAttempt(data.email, true);
     }
     
     toast.success(isSignUp ? 'Compte créé avec succès' : 'Connexion réussie');
@@ -211,6 +319,17 @@ export default function LoginPage() {
                 </p>
               </div>
 
+              {isLocked && (
+                <Alert variant="destructive" className="mb-6">
+                  <Lock className="h-4 w-4" />
+                  <AlertTitle>Compte temporairement verrouillé</AlertTitle>
+                  <AlertDescription>
+                    Trop de tentatives de connexion échouées. 
+                    Réessayez dans {formatRemainingTime(lockoutRemaining)}.
+                  </AlertDescription>
+                </Alert>
+              )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -265,11 +384,16 @@ export default function LoginPage() {
                 )}
               />
 
-              <Button type="submit" className="w-full h-11" disabled={isLoading}>
+              <Button type="submit" className="w-full h-11" disabled={isLoading || (isLocked && !isSignUp)}>
                 {isLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     {isSignUp ? 'Création...' : 'Connexion en cours...'}
+                  </>
+                ) : isLocked && !isSignUp ? (
+                  <>
+                    <Lock className="h-4 w-4 mr-2" />
+                    Compte verrouillé
                   </>
                 ) : (
                   isSignUp ? 'Créer un compte' : 'Se connecter'
