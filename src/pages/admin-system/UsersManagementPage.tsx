@@ -9,7 +9,9 @@ import {
     Loader2,
     UserPlus,
     Mail,
-    Calendar
+    Calendar,
+    Eye,
+    EyeOff
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,6 +52,7 @@ import { useAdminUsers, useUpdateUserRole } from '@/hooks/useAdminUsers';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { maskEmail } from '@/lib/emailMasking';
 
 export default function UsersManagementPage() {
     const { data: users, isLoading } = useAdminUsers();
@@ -62,7 +65,8 @@ export default function UsersManagementPage() {
         currentRole: string;
     } | null>(null);
     const [newRole, setNewRole] = useState<string>('');
-
+    const [showEmails, setShowEmails] = useState<Set<string>>(new Set());
+    const [showAllEmails, setShowAllEmails] = useState(false);
     const filteredUsers = users?.filter(
         (user) =>
             user.email?.toLowerCase().includes(search.toLowerCase()) ||
@@ -81,9 +85,10 @@ export default function UsersManagementPage() {
             try {
                 await updateRole.mutateAsync({
                     userId: selectedUser.id,
-                    role: newRole as 'admin' | 'charge_affaires'
+                    role: newRole as 'admin' | 'charge_affaires',
+                    previousRole: selectedUser.currentRole
                 });
-                toast.success(`Rôle de ${selectedUser.email} mis à jour`);
+                toast.success(`Rôle de ${maskEmail(selectedUser.email, showAllEmails)} mis à jour`);
                 setRoleDialogOpen(false);
                 setSelectedUser(null);
             } catch (error) {
@@ -91,6 +96,20 @@ export default function UsersManagementPage() {
             }
         }
     };
+
+    const toggleEmailVisibility = (userId: string) => {
+        setShowEmails(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(userId)) {
+                newSet.delete(userId);
+            } else {
+                newSet.add(userId);
+            }
+            return newSet;
+        });
+    };
+
+    const isEmailVisible = (userId: string) => showAllEmails || showEmails.has(userId);
 
     const getRoleBadge = (role: string) => {
         switch (role) {
@@ -133,13 +152,35 @@ export default function UsersManagementPage() {
                 {/* Users Table */}
                 <Card className="bg-slate-900 border-slate-800">
                     <CardHeader>
-                        <CardTitle className="text-white flex items-center gap-2">
-                            <Users className="h-5 w-5" />
-                            Utilisateurs ({filteredUsers?.length ?? 0})
-                        </CardTitle>
-                        <CardDescription className="text-slate-400">
-                            Liste de tous les utilisateurs de la plateforme
-                        </CardDescription>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-white flex items-center gap-2">
+                                    <Users className="h-5 w-5" />
+                                    Utilisateurs ({filteredUsers?.length ?? 0})
+                                </CardTitle>
+                                <CardDescription className="text-slate-400">
+                                    Liste de tous les utilisateurs de la plateforme
+                                </CardDescription>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAllEmails(!showAllEmails)}
+                                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                            >
+                                {showAllEmails ? (
+                                    <>
+                                        <EyeOff className="h-4 w-4 mr-2" />
+                                        Masquer les emails
+                                    </>
+                                ) : (
+                                    <>
+                                        <Eye className="h-4 w-4 mr-2" />
+                                        Afficher les emails
+                                    </>
+                                )}
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         {/* Search */}
@@ -200,10 +241,17 @@ export default function UsersManagementPage() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div className="flex items-center gap-2 text-slate-300">
-                                                        <Mail className="h-4 w-4 text-slate-500" />
-                                                        {user.email}
-                                                    </div>
+                                                    <button
+                                                        onClick={() => toggleEmailVisibility(user.user_id)}
+                                                        className="flex items-center gap-2 text-slate-300 hover:text-blue-400 transition-colors"
+                                                    >
+                                                        {isEmailVisible(user.user_id) ? (
+                                                            <EyeOff className="h-4 w-4 text-slate-500" />
+                                                        ) : (
+                                                            <Eye className="h-4 w-4 text-slate-500" />
+                                                        )}
+                                                        <span>{maskEmail(user.email, isEmailVisible(user.user_id))}</span>
+                                                    </button>
                                                 </TableCell>
                                                 <TableCell>
                                                     {getRoleBadge(user.role)}
