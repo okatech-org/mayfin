@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
+import { logAuditAction } from './useAuditLogs';
 
 interface UserWithProfile {
     id: string;
@@ -30,7 +32,10 @@ interface AdminStats {
 }
 
 // Fetch all users with their profiles and roles (admin only)
+// Includes audit logging for PII access compliance
 export function useAdminUsers() {
+    const { user } = useAuth();
+    
     return useQuery({
         queryKey: ['admin_users'],
         queryFn: async (): Promise<UserWithProfile[]> => {
@@ -48,6 +53,19 @@ export function useAdminUsers() {
                 .select('user_id, role');
 
             if (rolesError) throw rolesError;
+
+            // Audit log: Admin accessed user list with emails (PII)
+            if (user?.id && profiles && profiles.length > 0) {
+                await logAuditAction(
+                    user.id,
+                    'ADMIN_LIST_USERS',
+                    'admin_access',
+                    undefined,
+                    undefined,
+                    undefined,
+                    { users_count: profiles.length, accessed_pii: true }
+                );
+            }
 
             // Create a map of user_id to role
             const rolesMap = new Map(
@@ -130,25 +148,51 @@ export function useAdminStats() {
 }
 
 // Update user role - Uses secure RPC function with validation
+// Includes comprehensive audit logging for security compliance
 export function useUpdateUserRole() {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
 
     return useMutation({
-        mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'charge_affaires' }) => {
+        mutationFn: async ({ userId, role, previousRole }: { userId: string; role: 'admin' | 'charge_affaires'; previousRole?: string }) => {
             // Use the secure RPC function instead of direct table manipulation
             // This ensures:
             // 1. Admin validation is done server-side
             // 2. Self-demotion protection (admin can't remove own admin role)
             // 3. Atomic transaction
-            // 4. Audit logging (when enabled)
             const { data, error } = await supabase.rpc('update_user_role', {
                 target_user_id: userId,
                 new_role: role,
             });
 
             if (error) {
+                // Audit log: Failed role change attempt
+                if (user?.id) {
+                    await logAuditAction(
+                        user.id,
+                        'ADMIN_ROLE_CHANGE_FAILED',
+                        'user_role',
+                        undefined,
+                        userId,
+                        { role: previousRole },
+                        { role, error: error.message }
+                    );
+                }
                 console.error('Error updating user role:', error);
                 throw error;
+            }
+
+            // Audit log: Successful role change
+            if (user?.id) {
+                await logAuditAction(
+                    user.id,
+                    'ADMIN_ROLE_CHANGED',
+                    'user_role',
+                    undefined,
+                    userId,
+                    { role: previousRole || 'unknown' },
+                    { role }
+                );
             }
 
             return { userId, role };
