@@ -149,7 +149,8 @@ export function generateBNPRapportPDF(input: BNPReportInput): void {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
         if (isPositive !== undefined) {
-            doc.setTextColor(isPositive ? ...COLORS.success : ...COLORS.danger);
+            const color = isPositive ? COLORS.success : COLORS.danger;
+            doc.setTextColor(color[0], color[1], color[2]);
         }
         doc.text(label, margin, y);
         doc.setTextColor(...COLORS.black);
