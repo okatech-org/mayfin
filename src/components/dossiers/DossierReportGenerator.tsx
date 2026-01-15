@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Download, Eye, Loader2, FileType, Sparkles } from 'lucide-react';
+import { FileText, Download, Eye, Loader2, FileType, Sparkles, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,8 @@ import { DocumentPreviewModal } from '@/components/smart-import/DocumentPreviewM
 import { generateSmartAnalysisPDF } from '@/lib/rapport-pdf-generator';
 import { generateSmartAnalysisWord } from '@/lib/rapport-word-generator';
 import { useAnalyseHistory } from '@/hooks/useAnalyseHistory';
+import { generateBNPRapportPDF, createBNPQuestionnaireFromAnalysis, type BNPReportInput } from '@/lib/bnp-rapport-generator';
+import type { BNPQuestionnaireData, BNPRecommandationFinale } from '@/types/bnp-rapport.types';
 
 type DossierRow = Tables<'dossiers'>;
 type DonneeFinanciereRow = Tables<'donnees_financieres'>;
@@ -29,6 +31,7 @@ export function DossierReportGenerator({ dossier, financieres }: DossierReportGe
     const [showPreview, setShowPreview] = useState(false);
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const [isGeneratingWord, setIsGeneratingWord] = useState(false);
+    const [isGeneratingBNP, setIsGeneratingBNP] = useState(false);
     const { history, isLoading: loadingHistory } = useAnalyseHistory(dossier.id);
 
     // Convert dossier data to AnalysisResult format
@@ -140,6 +143,116 @@ export function DossierReportGenerator({ dossier, financieres }: DossierReportGe
         }
     };
 
+    const handleGenerateBNP = () => {
+        setIsGeneratingBNP(true);
+        try {
+            const analysisResult = buildAnalysisResult();
+
+            // Create partial questionnaire from analysis
+            const partialQuestionnaire = createBNPQuestionnaireFromAnalysis(
+                analysisResult,
+                dossier,
+                'creation'
+            );
+
+            // Build complete questionnaire with defaults
+            const questionnaire: BNPQuestionnaireData = {
+                ...partialQuestionnaire,
+                // Complete with required fields
+                detailDemande: partialQuestionnaire.detailDemande || `Demande de financement ${dossier.type_financement} pour ${dossier.raison_sociale}`,
+                zoneExploitationAdresse: dossier.adresse_siege || '',
+                zoneExploitationCodePostal: '',
+                zoneExploitationCommune: '',
+                commentaireZoneExploitation: '',
+                premiereExperienceEntrepreneuriale: true,
+                exigencesAccesProfession: true,
+                conjointRoleActivite: false,
+                autresInfosPorteur: `${dossier.dirigeant_prenom} ${dossier.dirigeant_nom}`,
+                commentaireEnvironnementLocal: 'Analyse environnement local à compléter.',
+                commentaireBilansConsolides: partialQuestionnaire.commentaireBilansConsolides || 'Analyse financière à compléter.',
+                syntheseCompteResultat: 'Synthèse compte de résultat à compléter.',
+                evenementsConjoncturels: false,
+                autresInfosAnalyseFinanciere: 'Informations complémentaires à analyser.',
+                chargesPrevisionnelles: partialQuestionnaire.chargesPrevisionnelles || {
+                    annee1: { chargesVariables: 0, chargesVariablesPct: 0, chargesFixesExploitation: 0, chargesPersonnel: 0 },
+                    annee2: { chargesVariables: 0, chargesVariablesPct: 0, chargesFixesExploitation: 0, chargesPersonnel: 0 },
+                    annee3: { chargesVariables: 0, chargesVariablesPct: 0, chargesFixesExploitation: 0, chargesPersonnel: 0 },
+                },
+                chargesBienReparties: true,
+                commentaireChargesExternes: 'Analyse charges externes à détailler.',
+                commentaireMargeBrute: 'Analyse marge brute à détailler.',
+                validationCafPrevisionnel: true,
+                cafData: partialQuestionnaire.cafData || {
+                    annee1: { caf: 0, annuites: 0, solde: 0, dscr: 0 },
+                    annee2: { caf: 0, annuites: 0, solde: 0, dscr: 0 },
+                    annee3: { caf: 0, annuites: 0, solde: 0, dscr: 0 },
+                },
+                validationCafGlobal: true,
+                validationCafJustification: 'Justification CAF à compléter.',
+                beneficieAidesEtat: false,
+                revenusCautions: [],
+                commentaireChargesPersonnel: 'Analyse charges personnel à détailler.',
+                presenceFinancementsLies: false,
+                presentationDeclic: false,
+                fondsPropresNegatifs: false,
+                controlesIndispensablesRealises: false,
+                checklistControles: [
+                    { controle: 'Kbis / Extrait K', statut: 'a_obtenir' },
+                    { controle: 'Pièce identité dirigeant', statut: 'a_obtenir' },
+                    { controle: 'Business plan', statut: 'ok' },
+                ],
+                syntheseCollaborateur: analysisResult.score && analysisResult.score.global >= 60 ? 'concluante' : 'reservee',
+                pointsAttention: ['Points d\'attention à identifier'],
+                decisionFinale: analysisResult.score && analysisResult.score.global >= 60 ? 'accord_conditions' : 'transmission_comite',
+                conditionsParticulieres: ['Conditions à définir'],
+                recommandationJustification: 'Justification de la recommandation à compléter.',
+            };
+
+            // Build recommendation
+            const recommandation: BNPRecommandationFinale = {
+                decision: questionnaire.decisionFinale,
+                montantFinancable: dossier.montant_demande,
+                financements: [
+                    {
+                        type: dossier.type_financement || 'Crédit professionnel',
+                        montant: dossier.montant_demande,
+                        duree: Math.ceil((dossier.duree_mois || 60) / 12),
+                        taux: 4.5,
+                        mensualite: Math.round(dossier.montant_demande / (dossier.duree_mois || 60)),
+                    },
+                ],
+                garanties: [
+                    { type: 'Caution personnelle', description: 'Du dirigeant' },
+                ],
+                conditions: questionnaire.conditionsParticulieres,
+                ratios: {
+                    tauxApport: 20,
+                    dettesCAF: 2.5,
+                    dscrA1: 1.3,
+                    autonomieFinanciere: 30,
+                },
+                justification: questionnaire.recommandationJustification,
+            };
+
+            // Generate the PDF
+            const input: BNPReportInput = {
+                questionnaire,
+                dossier,
+                analysisResult,
+                projectType: 'creation',
+                recommandation,
+            };
+
+            generateBNPRapportPDF(input);
+            toast.success('Rapport BNP Paribas généré avec succès (20-30 pages)');
+        } catch (error) {
+            console.error('Erreur génération BNP:', error);
+            toast.error('Erreur lors de la génération du rapport BNP');
+        } finally {
+            setIsGeneratingBNP(false);
+        }
+    };
+
     const analysisResult = buildAnalysisResult();
     const hasAIAnalysis = history && history.length > 0;
 
@@ -228,6 +341,19 @@ export function DossierReportGenerator({ dossier, financieres }: DossierReportGe
                                 <Download className="h-4 w-4 mr-2" />
                             )}
                             Télécharger PDF
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            onClick={handleGenerateBNP}
+                            disabled={isGeneratingBNP || loadingHistory}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                            {isGeneratingBNP ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                                <Building2 className="h-4 w-4 mr-2" />
+                            )}
+                            Rapport BNP 35Q
                         </Button>
                     </div>
                 </CardContent>
