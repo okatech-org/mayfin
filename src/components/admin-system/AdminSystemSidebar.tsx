@@ -5,7 +5,8 @@ import {
     Settings,
     ArrowLeft,
     LogOut,
-    Activity
+    Activity,
+    FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,6 +15,7 @@ import logoMayfin from '@/assets/logo-mayfin.png';
 const navigation = [
     { name: 'Dashboard Système', href: '/system-admin', icon: LayoutDashboard },
     { name: 'Gestion des utilisateurs', href: '/system-admin/users', icon: Users },
+    { name: 'Logs d\'audit', href: '/system-admin/audit-logs', icon: FileText },
     { name: 'Paramètres système', href: '/system-admin/settings', icon: Settings },
 ];
 

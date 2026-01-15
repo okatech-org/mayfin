@@ -24,6 +24,7 @@ const AdminPage = lazy(() => import("./pages/AdminPage"));
 // System Admin Pages (lazy loaded)
 const SystemDashboardPage = lazy(() => import("./pages/admin-system/SystemDashboardPage"));
 const UsersManagementPage = lazy(() => import("./pages/admin-system/UsersManagementPage"));
+const AuditLogsPage = lazy(() => import("./pages/admin-system/AuditLogsPage"));
 const SystemSettingsPage = lazy(() => import("./pages/admin-system/SystemSettingsPage"));
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ const App = () => (
               {/* System Admin Routes */}
               <Route path="/system-admin" element={<ProtectedRoute requiredRole="admin"><SystemDashboardPage /></ProtectedRoute>} />
               <Route path="/system-admin/users" element={<ProtectedRoute requiredRole="admin"><UsersManagementPage /></ProtectedRoute>} />
+              <Route path="/system-admin/audit-logs" element={<ProtectedRoute requiredRole="admin"><AuditLogsPage /></ProtectedRoute>} />
               <Route path="/system-admin/settings" element={<ProtectedRoute requiredRole="admin"><SystemSettingsPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
